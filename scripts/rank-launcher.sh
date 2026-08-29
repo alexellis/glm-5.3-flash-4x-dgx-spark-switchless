@@ -86,7 +86,7 @@ docker run -d --name "$NAME" --restart no \
     --master-addr "$MASTER" --master-port "$MPORT" \
     --gpu-memory-utilization 0.85 --max-model-len 262144 \
     --max-num-seqs 6 --block-size 2304 --moe-backend marlin \
-    --kv-cache-dtype fp8_e4m3 --kv-cache-memory 12884901888 \
+    --kv-cache-dtype auto --kv-cache-memory 12884901888 \
     --speculative-config '{"method":"dflash","model":"/draft","num_speculative_tokens":7}' \
     --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45 \
     --default-chat-template-kwargs '{"enable_thinking": true}' \

@@ -112,7 +112,7 @@ them unless you understand the consequence.
   --master-addr <HEAD_MGMT_IP> --master-port <MPORT>
   --gpu-memory-utilization 0.85 --max-model-len 262144
   --max-num-seqs 6 --block-size 2304 --moe-backend marlin
-  --kv-cache-dtype fp8_e4m3 --kv-cache-memory 12884901888   # 12 GiB — see gotchas
+  --kv-cache-dtype auto --kv-cache-memory 12884901888       # bf16 KV, 12 GiB — see gotchas
   --speculative-config '{"method":"dflash","model":"/draft","num_speculative_tokens":7}'
   --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45
   --default-chat-template-kwargs '{"enable_thinking": true}'
@@ -123,9 +123,16 @@ them unless you understand the consequence.
 Notes on the choices:
 
 - **`--moe-backend marlin`** — the MoE kernel that performs on NVFP4 / `sm_121`.
-- **`--kv-cache-dtype fp8_e4m3` + `--kv-cache-memory 12 GiB`** — the KV pool is
-  capped at 12 GiB on purpose. Chasing it higher risks an OOM **hard-hang** on a
-  node (not a clean error). See [`gotchas.md`](gotchas.md).
+- **`--kv-cache-dtype auto` (bf16 KV) + `--kv-cache-memory 12 GiB`** — use an
+  *unquantised* (bf16) KV cache. FP8 KV (`fp8_e4m3`) is a blunt per-tensor quant
+  whose error accumulates with context depth; DeepSeek-MLA models avoid that with
+  the native `fp8_ds_mla` format, but GLM-5.3-Flash is **NoPE**-MLA and does not
+  fit the `fp8_ds_mla` path (a `pe_dim` mismatch) — so the clean choice here is
+  bf16. Because MLA keeps the KV small, bf16 still yields a large pool
+  (**≈ 811,800 tokens, ~3.1× the 262K window**) and costs nothing on decode.
+  Validated: mid-context needle retrieval passes at **30K / 119K / 229K** tokens.
+  The pool is capped at 12 GiB on purpose — chasing it higher risks an OOM
+  **hard-hang** on a node (not a clean error). See [`gotchas.md`](gotchas.md).
 - **DFlash speculative config, `num_speculative_tokens: 7`** — the DFlash2 drafter
   mounted at `/draft`; 7 is the tuned depth for this pairing.
 - **`--tool-call-parser glm47 --reasoning-parser glm45`** — GLM-5.3 emits

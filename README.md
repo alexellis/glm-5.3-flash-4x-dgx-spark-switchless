@@ -115,7 +115,7 @@ management LAN.
 | Your **RoCE cabling** (which port on which node reaches which neighbour) | The **drafter**: `incoai/GLM-5.3-Flash-DFlash2` |
 | Your **fabric IP scheme** (a template is supplied — use any private range) | The **container image**: `radixark/vllm-glm53-flash:dflash2` |
 | Your **interface names** (defaults match the DGX Spark; adjust for your NICs) | The **patched NCCL 2.30.7** (skip-tree-connect, `LD_PRELOAD`) |
-| Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV `fp8_e4m3`, KV ceiling 12 GiB, DFlash `num_speculative_tokens: 7`, parsers, `max-model-len 262144`) |
+| Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **bf16** (`--kv-cache-dtype auto`), KV pool 12 GiB, DFlash `num_speculative_tokens: 7`, parsers, `max-model-len 262144`) |
 | A HuggingFace token to fetch the weights (kept in your own secret store) | The **launch order** (workers 3→2→1 headless, then head 0) |
 
 The whole point of the table: clone this, drop in your five values (four node IPs
