@@ -46,6 +46,19 @@ Per-node summary (this is the table the script fills in):
 A useful convention (optional): make the last octet equal `rank + 1` on every
 rail, so an address instantly tells you which node it is.
 
+## The cables
+
+Four edges means **four cables — that is the entire cable bill for the ring**.
+With the nodes stacked or side by side, the shortest passive DACs on the market
+do the job: this deployment runs on **0.4–0.5 m Amphenol 100G QSFP28 DACs**.
+No optics, no transceivers, nothing active or fussy — buy the shortest length
+that reaches, since passive DACs are the cheapest and lowest-power option at
+these distances.
+
+Moving to a switched fabric changes the count and the reach, not necessarily
+the cables themselves — the per-switch cable story is in the table in
+[`switches.md`](switches.md).
+
 ---
 
 ## Interface names

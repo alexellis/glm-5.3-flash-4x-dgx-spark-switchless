@@ -48,6 +48,12 @@ and stock, checked **31 August 2026**:
 | **CRS804-4DDQ-hRM** — 4× 400G QSFP-DD, half-width | **£1,139.99** (LinITX) | Pre-order: batches **2 Oct** / **18 Dec 2026** | 123 W · 2 fans, the quiet 400G |
 | **CRS812-8DS-2DQ-2DDQ-RM** — 2× 400G + 2× 200G, 1U ToR | **£1,040.64** (Senetic) | **5 available** (Senetic) | 134 W · 4 fans, loud with optics — rack it |
 
+**Cables:** the ring runs on four short **0.4–0.5 m Amphenol 100G QSFP28 DACs**,
+and they re-plug into every model above — the 400G QSFP-DD cages accept QSFP28
+at 100G. New cables are only needed for dual-rail (four more DACs) or to push a
+rail past 100G; per-model notes are in the
+[`docs/switches.md`](docs/switches.md) table.
+
 **Supply-chain reality (2026):** the table *is* the story — the cheapest box is
 sold out UK-wide and the newest 400G part is pre-sold into October; what you can
 buy today is the 100G ToR. For a four-node build the switchless ring removes the
