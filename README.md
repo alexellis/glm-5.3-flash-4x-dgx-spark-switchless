@@ -1,18 +1,46 @@
-# GLM-5.3-Flash NVFP4 — 4× DGX Spark switchless-ring TP4 + DFlash2
+# GLM-5.3-Flash NVFP4 — 4× DGX Spark, switchless-ring TP4 + DFlash2
 
-A reproducible recipe for serving **GLM-5.3-Flash (NVFP4)** with **tensor
-parallelism across four NVIDIA DGX Spark (GB10 / `sm_121`) nodes**, joined by a
-**switchless RoCE ring**, with the **DFlash2 speculative drafter** for faster
-decode.
+Serve **GLM-5.3-Flash (NVFP4)** across **four NVIDIA DGX Spark (GB10 / `sm_121`)
+nodes** as one tensor-parallel engine — joined by a **switchless RoCE ring** and
+accelerated by the **DFlash2 speculative drafter**. One OpenAI-compatible endpoint,
+a 262K context window, ~45 tok/s on real agentic traffic — on hardware you own.
 
-This repository is the **recipe and the contract** — the weights, the container
-image, the patched NCCL, the serve arguments, the fabric-addressing template, the
-launch order, the correctness gate, and the hard-won gotchas. It is deliberately
-**infrastructure-agnostic**: every address, interface, and hostname is a
-placeholder you replace with your own. Nothing here depends on any private
+This repository is the **recipe and the contract**: every address, interface, and
+hostname is a placeholder you swap for your own — nothing here depends on a private
 gateway, router, or network.
 
-Built by **Alex Ellis** — [github.com/alexellis](https://github.com/alexellis) · [x.com/alexellisuk](https://x.com/alexellisuk). Licensed **MIT** (see [`LICENSE`](LICENSE)).
+Built and run in production by **Alex Ellis** / **OpenFaaS Ltd** —
+[github.com/alexellis](https://github.com/alexellis) ·
+[x.com/alexellisuk](https://x.com/alexellisuk). Licensed **MIT** (see
+[`LICENSE`](LICENSE)).
+
+---
+
+## Do you actually need a switch? No.
+
+The received wisdom is that multi-node tensor parallelism needs a 100/400 GbE
+switch on the fabric. For a four-node build it doesn't — and today, avoiding one is
+a feature rather than a compromise.
+
+This recipe cables the four Sparks into a **closed RoCE ring**: two rails per node,
+each wired straight to two neighbours, with the non-adjacent hop relayed through a
+neighbour (the routes and `DOCKER-USER` forwarding in
+[`scripts/fabric-setup.sh`](scripts/fabric-setup.sh) handle it). No switch on the
+data path — and, just as importantly, no switch on the **procurement** path, which
+is the part that actually bites right now.
+
+| If you did want a switch | Pros | Cons |
+|---|---|---|
+| **100 GbE** (e.g. MikroTik) | Cheapest by far, ample for a 4-node ring, low power, and the easiest of the three to source. | Can bottleneck the NICs under heavy collectives; little headroom to grow. |
+| **400 GbE — smaller** | Real bandwidth headroom; future-proofs prefill as context grows. | Markedly pricier; fewer ports; harder to source. |
+| **400 GbE — larger** | Most ports and bandwidth; scales cleanly past four nodes. | Most expensive; real power and cooling; the longest lead times. |
+
+**Supply-chain reality (2026):** 100/400 GbE stock is patchy and lead times are
+long — and it only gets worse the higher you go. For a four-node build the
+switchless ring removes the switch, *and its lead time*, from the critical path
+entirely. Reach for a switch when you scale past four nodes or want to change
+topology without re-cabling — the full write-up is in
+[`docs/switches.md`](docs/switches.md).
 
 ---
 
@@ -32,9 +60,29 @@ OpenAI-compatible endpoint (model id `glm-5.3-flash`) comes out of the head node
         C ───────── D        B ↔ C   via A or D
 ```
 
-No switch on the fabric. If you would rather use one — or are deciding whether to
-buy one — see [`docs/switches.md`](docs/switches.md) for the 100/400 GbE options
-and the supply-chain reality.
+---
+
+## Real serving numbers (measured, not marketed)
+
+Most recipes quote a synthetic benchmark. These are the actual serving records from
+running this deployment as a **daily driver** — real agentic coding traffic through
+an OpenAI-compatible gateway, not a load-generator. **TP4 only: figures from the
+earlier 2× bring-up are excluded.**
+
+| Metric | Measured (TP4, 4 nodes) |
+|---|---|
+| Requests served | **476** |
+| Tokens through the model | **~17.5M** (17.2M prompt · 297K completion) |
+| Decode on real generations (≥150 tok) | **~45 tok/s** typical, up to **~100 tok/s** warm |
+| Time-to-first-token | **~1–2 s** on a warm prefix-cache hit; several seconds on a cold, deep prefill |
+| Deepest single prompt served | **122K tokens** (of the 262K window) |
+
+The figure that reframes everything: **prompt tokens outweigh completion tokens
+roughly 58:1.** Real agentic coding is dominated by *reading* context, not writing
+it — so **prefill throughput and prefix-cache reuse matter far more than a headline
+decode rate.** A warm re-prefill of a ~19K-token turn in about two seconds is what
+makes the interactive loop feel instant; the decode t/s is almost a footnote.
+Optimise for the ratio you actually have, not the one the benchmarks advertise.
 
 ---
 
@@ -179,9 +227,9 @@ GLM-5.3 reasoning turns (a real output-token-cap trap worth knowing about).
 
 ## Credits
 
-This is an **integration** on top of other people's excellent work. See
-[`CREDITS.md`](CREDITS.md). In short: the image is radixark's, the drafter is
-incoai's, and several recipe details are informed by the wider DGX Spark
-community. The original contribution here is the **switchless-ring integration**
-(four nodes, dual-rail RoCE, no switch) with **patched NCCL 2.30.7** and the
-end-to-end TP4 + DFlash2 serve recipe.
+Funded by **OpenFaaS Ltd**'s investment in DGX Spark hardware and R&D time, and
+built by **Alex Ellis**. The original contribution here is the **switchless-ring
+integration** — four nodes, dual-rail RoCE, no switch — with **patched NCCL
+2.30.7** and the end-to-end TP4 + DFlash2 serve recipe, validated against real
+traffic. It stands on components from **radixark** (image), **incoai** (drafter),
+and the wider DGX Spark community. Full attribution in [`CREDITS.md`](CREDITS.md).
