@@ -11,6 +11,13 @@ This repository is the **recipe and the contract**: every address, interface, an
 hostname is a placeholder you swap for your own — nothing here depends on a private
 gateway, router, or network.
 
+**Not tied to these weights, either.** The ring fabric, the patched NCCL, and the
+rank-launch pattern know nothing about the model — the same four-node fabric has
+also served **GLM-5.2** (in more than one quant format: EXL3, and QuantTrio) and
+**DeepSeek-V4-Flash** at TP4. To adapt it, swap the weights and the model-specific
+serve arguments (parsers, drafter, MoE backend, and KV sizing); everything else in
+the recipe carries over.
+
 Built and run in production by **Alex Ellis** / **OpenFaaS Ltd** —
 [github.com/alexellis](https://github.com/alexellis) ·
 [x.com/alexellisuk](https://x.com/alexellisuk). Licensed **MIT** (see
