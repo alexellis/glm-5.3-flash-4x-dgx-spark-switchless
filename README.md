@@ -18,6 +18,16 @@ also served **GLM-5.2** (in more than one quant format: EXL3, and QuantTrio) and
 serve arguments (parsers, drafter, MoE backend, and KV sizing); everything else in
 the recipe carries over.
 
+**And no — this is not Sparkring under a different name.** There is no
+Sparkring/SIRCL anywhere in this stack. The collectives form on a **patched NCCL
+2.30.7** — a *skip-tree-connect* change `LD_PRELOAD`-ed into every container,
+because stock NCCL's tree-connect step wedges on a switch-free point-to-point
+fabric — plus a pinned NCCL runtime profile (ring algorithm, fixed channels,
+subnet-aware dual-rail routing) worked out for this topology. That combination
+was validated on this ring with Sparkring absent entirely. The patch and profile
+are in [`docs/recipe.md`](docs/recipe.md) §2; what we build on, and what is
+original here, is spelled out in [`CREDITS.md`](CREDITS.md).
+
 Built and run in production by **Alex Ellis** / **OpenFaaS Ltd** —
 [github.com/alexellis](https://github.com/alexellis) ·
 [x.com/alexellisuk](https://x.com/alexellisuk). Licensed **MIT** (see

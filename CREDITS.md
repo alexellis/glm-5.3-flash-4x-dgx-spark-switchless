@@ -24,7 +24,10 @@ end-to-end recipe around it:
 - Four DGX Spark nodes joined into a **closed RoCE ring with no switch**, using
   **dual RoCE rails per node** (a pair edge and a cross edge).
 - A **patched NCCL 2.30.7** (skip-tree-connect, `LD_PRELOAD`-ed) that lets the
-  collectives form reliably on a switch-free point-to-point fabric.
+  collectives form reliably on a switch-free point-to-point fabric — together
+  with the pinned NCCL runtime profile tuned for this topology. To answer a
+  recurring question directly: **Sparkring/SIRCL is not part of this stack**,
+  and the ring was validated with it absent.
 - The end-to-end **TP4 + DFlash2 serve recipe**: launch order, fabric-addressing
   template, correctness gate, KV and quant choices, and the operational gotchas
   that make it repeatable — validated against real serving traffic, not just a
