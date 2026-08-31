@@ -18,16 +18,6 @@ Built by **Alex Ellis** — [github.com/alexellis](https://github.com/alexellis)
 
 ## At a glance
 
-```mermaid
-graph TD
-    A["A · rank0 · head :8000"] --- B["B · rank1"]
-    A --- C["C · rank2"]
-    B --- D["D · rank3"]
-    C --- D
-    A -. "relayed via B or C" .- D
-    B -. "relayed via A or D" .- C
-```
-
 Four DGX Sparks in a **switchless RoCE ring** — each node cabled to two
 neighbours. Non-adjacent nodes talk by **relaying through a neighbour**: A reaches
 D via B or C (and B reaches C via A or D), using the routes + `DOCKER-USER`
