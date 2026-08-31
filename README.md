@@ -31,17 +31,22 @@ neighbour (the routes and `DOCKER-USER` forwarding in
 data path — and, just as importantly, no switch on the **procurement** path, which
 is the part that actually bites right now.
 
-| If you did want a switch | Pros | Cons |
-|---|---|---|
-| **100 GbE** (e.g. MikroTik) | Cheapest by far, ample for a 4-node ring, low power, and the easiest of the three to source. | Can bottleneck the NICs under heavy collectives; little headroom to grow. |
-| **400 GbE — smaller** | Real bandwidth headroom; future-proofs prefill as context grows. | Markedly pricier; fewer ports; harder to source. |
-| **400 GbE — larger** | Most ports and bandwidth; scales cleanly past four nodes. | Most expensive; real power and cooling; the longest lead times. |
+If you did want one, MikroTik now covers every tier — real UK prices (inc VAT)
+and stock, checked **31 August 2026**:
 
-**Supply-chain reality (2026):** 100/400 GbE stock is patchy and lead times are
-long — and it only gets worse the higher you go. For a four-node build the
-switchless ring removes the switch, *and its lead time*, from the critical path
-entirely. Reach for a switch when you scale past four nodes or want to change
-topology without re-cabling — the full write-up is in
+| Model | UK price (inc VAT) | Stock | Power · noise |
+|---|---|---|---|
+| **CRS504-4XQ-IN** — 4× 100G QSFP28, compact | from **£599.44** | **Out of stock** UK-wide (LinITX awaiting restock) | 41 W · 2 fans, near-silent, desk-tolerable |
+| **CRS520-4XS-16XQ-RM** — 16× 100G QSFP28, 1U ToR | **£1,679.99** (LinITX) | **3 in stock**, despatch today | 150 W · 4 fans, rack acoustics |
+| **CRS804-4DDQ-hRM** — 4× 400G QSFP-DD, half-width | **£1,139.99** (LinITX) | Pre-order: batches **2 Oct** / **18 Dec 2026** | 123 W · 2 fans, the quiet 400G |
+| **CRS812-8DS-2DQ-2DDQ-RM** — 2× 400G + 2× 200G, 1U ToR | **£1,040.64** (Senetic) | **5 available** (Senetic) | 134 W · 4 fans, loud with optics — rack it |
+
+**Supply-chain reality (2026):** the table *is* the story — the cheapest box is
+sold out UK-wide and the newest 400G part is pre-sold into October; what you can
+buy today is the 100G ToR. For a four-node build the switchless ring removes the
+switch, *and its lead time*, from the critical path entirely. Reach for a switch
+when you scale past four nodes or want to change topology without re-cabling —
+supplier links, heat figures, and port-fit notes are in
 [`docs/switches.md`](docs/switches.md).
 
 ---
