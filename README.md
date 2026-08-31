@@ -114,6 +114,44 @@ decode rate.** A warm re-prefill of a ~19K-token turn in about two seconds is wh
 makes the interactive loop feel instant; the decode t/s is almost a footnote.
 Optimise for the ratio you actually have, not the one the benchmarks advertise.
 
+### Concurrency
+
+This deployment serves **two humans plus their coding agents daily**, and the
+engine is tuned for a small team rather than a fleet: `--max-num-seqs 6`, with a
+KV pool of 786,432 tokens (3.0× the served window). We measured concurrency two
+ways, because they disagree — and the difference is the honest answer.
+
+The decode-only sweep (steady generation, thinking off):
+
+| Streams | Per-stream tok/s | Aggregate tok/s |
+|---|---|---|
+| 1 | **71** | 71 |
+| 2 | 50 / 38.5 | 77 |
+| 4 | 34 / 24 / 24 / 24 | **95** |
+
+One stream already saturates the ring, so extra streams **time-share a fixed
+decode budget** — per-stream falls roughly linearly while aggregate keeps
+climbing. Nothing collapses; beyond `max-num-seqs` requests queue.
+
+Real agentic clients are harsher. With genuine opencode coding sessions (mixed
+prefill, thinking, and tool calls; per-session decode measured on sustained
+generations of ≥150 tokens):
+
+| Concurrent sessions | Per-session tok/s |
+|---|---|
+| 1 | **~44** |
+| 2 | **~32** each |
+| 3 | ~31 each |
+| 4 | ~18 each |
+
+Trust this table over the sweep: short tool-call bursts and speculative decode
+over-read tiny predictable outputs, which is how synthetic numbers (and raw
+all-request means) flatter a rig. In practice **two concurrent users cost each
+about 27% of solo speed and the loop stays perfectly usable** — helped by the
+58:1 ratio above: a warm re-prefill lands at ~9,000 tok/s (TTFT ~1.1 s)
+regardless of who else is mid-decode, and that is what the interactive loop
+actually feels like.
+
 ---
 
 ## What this gets you
