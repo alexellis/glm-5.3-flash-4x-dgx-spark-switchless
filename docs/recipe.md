@@ -136,10 +136,13 @@ Notes on the choices:
   the native `fp8_ds_mla` format, but GLM-5.3-Flash is **NoPE**-MLA and does not
   fit the `fp8_ds_mla` path (a `pe_dim` mismatch) — so the clean choice here is
   bf16. Because MLA keeps the KV small, bf16 still yields a large pool
-  (**≈ 811,800 tokens, ~3.1× the 262K window**) and costs nothing on decode.
+  (**786,432 tokens, 3.0× the 262K window** — the rank-0 log prints it at
+  start-up) and costs nothing on decode.
   Validated: mid-context needle retrieval passes at **30K / 119K / 229K** tokens.
   The pool is capped at 12 GiB on purpose — chasing it higher risks an OOM
   **hard-hang** on a node (not a clean error). See [`gotchas.md`](gotchas.md).
+  Wondering about a 512K or 1M window instead? The arithmetic and the gating
+  steps are worked through in [`long-context.md`](long-context.md).
 - **DFlash speculative config, `num_speculative_tokens: 7`** — the DFlash2 drafter
   mounted at `/draft`; 7 is the tuned depth for this pairing.
 - **`--tool-call-parser glm47 --reasoning-parser glm45`** — GLM-5.3 emits
