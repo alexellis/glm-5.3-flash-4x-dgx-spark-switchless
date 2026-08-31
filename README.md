@@ -93,7 +93,10 @@ Optimise for the ratio you actually have, not the one the benchmarks advertise.
 - One OpenAI-compatible endpoint (`/v1/...`) on the head node's port `8000`,
   backed by all four Sparks acting as a single TP4 engine.
 - Served model id: `glm-5.3-flash`.
-- Context window up to **262,144** tokens.
+- Context window up to **262,144** tokens. The model itself is rated to **1M**
+  — the shipped window is a deliberate trade, and
+  [`docs/long-context.md`](docs/long-context.md) works through exactly what
+  512K or 1M would take, and what it would cost in KV.
 - Warm decode in the region of **48–51 tokens/s** for code (up to ~72 t/s warm),
   prefill around **1,800 t/s at 32–64K** — roughly the bottom commercial
   GLM-5.3 tier, on hardware you own.
@@ -207,6 +210,7 @@ in step 4 passes — see [`docs/recipe.md`](docs/recipe.md) §5.
 │   ├── recipe.md             # the full detailed recipe, end to end
 │   ├── fabric.md             # the ring fabric addressing template + MTU
 │   ├── switches.md           # switched alternatives (100/400 GbE) + supply chain
+│   ├── long-context.md       # 512K / 1M: the KV arithmetic + how to gate it
 │   └── gotchas.md            # failure modes and the fixes
 └── scripts/
     ├── fabric-setup.sh       # apply ring addressing + MTU (edit vars at top)
