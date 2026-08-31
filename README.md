@@ -1,5 +1,7 @@
 # GLM-5.3-Flash NVFP4 — 4× DGX Spark, switchless-ring TP4 + DFlash2
 
+![GLM-5.3-Flash (320B-A18B, NVFP4) served TP4 across four NVIDIA DGX Spark nodes on a switchless ring](images/hero.jpg)
+
 Serve **GLM-5.3-Flash (NVFP4)** across **four NVIDIA DGX Spark (GB10 / `sm_121`)
 nodes** as one tensor-parallel engine — joined by a **switchless RoCE ring** and
 accelerated by the **DFlash2 speculative drafter**. One OpenAI-compatible endpoint,
