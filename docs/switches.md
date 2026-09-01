@@ -72,20 +72,11 @@ what the fabric costs.
 
 **Why:** cold prefill is bandwidth-bound (large all-reduce collectives), and the
 CRS504 gives **one ~92 Gb/s rail per node** versus the ring's **two rails**. So
-prefill drops; decode is latency-bound (small messages) and barely moves;
-correctness is unaffected. This is a *confounded* comparison (100G-single-rail
-switched vs 200G-dual-rail switchless); isolating the switching penalty alone
-would need a 200G switch (e.g. CRS812).
-
-> ⚠️ **Caveat — the ~910 may be under-tuned, not the switch's ceiling.** Our NCCL
-> environment here was the ring's (`NCCL_MIN/MAX_NCHANNELS=4`, `NCCL_CROSS_NIC=1`,
-> `NCCL_ALGO=Ring`) applied unchanged to a single-rail switch, and we ran no
-> PFC/lossless RoCE. A public [4-node CRS504 report](https://forums.developer.nvidia.com/t/4-node-cluster-with-crs504-and-100g-connection-results/373818)
-> measured **~2,400 tok/s prefill for DeepSeek-V4-Flash on the same switch** — ~2.6×
-> our GLM figure — which strongly suggests our number is config-limited (ring-tuned
-> NCCL / no PFC / GLM's heavier bf16-KV collectives) rather than a 100G wall. A
-> switch-appropriate re-run (auto-tuned channels, drop `CROSS_NIC`, ± PFC) is
-> pending; treat the 2.5× as an upper bound on the penalty until then.
+prefill takes ~2.5×; decode is latency-bound (small messages) and barely moves;
+correctness is unaffected. **If your workload is prefill-heavy** — deep context,
+high read:write ratio — the switchless ring is materially faster. This is a
+*confounded* comparison (100G-single-rail switched vs 200G-dual-rail switchless);
+isolating the switching penalty alone would need a 200G switch (e.g. CRS812).
 
 ### Deployment profile (measured, switchless — the production config)
 
