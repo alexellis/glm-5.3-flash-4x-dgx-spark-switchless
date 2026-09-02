@@ -70,13 +70,24 @@ what the fabric costs.
 | Warm decode | 37–41 tok/s | **34 tok/s** | ~15% slower |
 | Needle retrieval @ ~64K | PASS | **PASS** | correctness intact |
 
-**Why:** cold prefill is bandwidth-bound (large all-reduce collectives), and the
-CRS504 gives **one ~92 Gb/s rail per node** versus the ring's **two rails**. So
-prefill takes ~2.5×; decode is latency-bound (small messages) and barely moves;
-correctness is unaffected. **If your workload is prefill-heavy** — deep context,
-high read:write ratio — the switchless ring is materially faster. This is a
-*confounded* comparison (100G-single-rail switched vs 200G-dual-rail switchless);
-isolating the switching penalty alone would need a 200G switch (e.g. CRS812).
+**Why (measured, not assumed):** it is **NOT** bandwidth saturation. Per-direction
+RDMA counters (`/sys/class/infiniband/.../port_{xmit,rcv}_data`) during a real
+prefill showed the single 100G rail carrying only **~8-10 Gbit/s each way** — well
+under line rate, with **zero** errors, discards, or retransmits. The collective is
+latency-bound at that per-rail rate; the switchless ring wins by driving **both
+rails in parallel** (~2× the aggregate at the same per-rail rate), plus a little
+switch-added latency — that's the ~2.5×. So the limiter is the CRS504 giving **one
+rail per node** (its four ports = one rail each for four nodes), not the link's
+bandwidth. Decode is latency-bound (small messages) and barely moves; correctness
+is unaffected. **If your workload is prefill-heavy** — deep context, high
+read:write ratio — the switchless dual-rail ring is materially faster. A
+**dual-rail-capable switch** (e.g. a 16-port CRS520, giving each node two rails to
+the switch) would likely close most of the gap; the CRS504's four ports cannot.
+
+> Measurement note: validate switched-RoCE with the **RDMA port counters**, not
+> netdev byte counters (RoCE bypasses the kernel stack, so `/sys/class/net`
+> under-reads it) — and not ICMP `ping -f` floods (control-plane rate-limited). We
+> made both of those mistakes before the RDMA-counter reading settled it.
 
 ### Deployment profile (measured, switchless — the production config)
 
