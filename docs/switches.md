@@ -74,15 +74,23 @@ what the fabric costs.
 RDMA counters (`/sys/class/infiniband/.../port_{xmit,rcv}_data`) during a real
 prefill showed the single 100G rail carrying only **~8-10 Gbit/s each way** — well
 under line rate, with **zero** errors, discards, or retransmits. The collective is
-latency-bound at that per-rail rate; the switchless ring wins by driving **both
-rails in parallel** (~2× the aggregate at the same per-rail rate), plus a little
-switch-added latency — that's the ~2.5×. So the limiter is the CRS504 giving **one
-rail per node** (its four ports = one rail each for four nodes), not the link's
-bandwidth. Decode is latency-bound (small messages) and barely moves; correctness
-is unaffected. **If your workload is prefill-heavy** — deep context, high
-read:write ratio — the switchless dual-rail ring is materially faster. A
-**dual-rail-capable switch** (e.g. a 16-port CRS520, giving each node two rails to
-the switch) would likely close most of the gap; the CRS504's four ports cannot.
+latency-bound at that per-rail rate, and the switchless ring drives **both rails
+in parallel**. The CRS504 gives each node a single **100G** rail — that per-node
+link, not switching itself, is the limiter. Decode is latency-bound (small
+messages) and barely moves; correctness is unaffected. **If your workload is
+prefill-heavy** — deep context, high read:write ratio — the CRS504 is materially
+slower.
+
+**The fix is a 200G-per-node switch, not more ports.** The community-proven
+switched path is the **MikroTik CRS812**: its 2× 400G QSFP-DD ports break out
+(400G → 2× 200G QSFP56) to give four nodes a **200G** rail each, and 4-node
+clusters report **~190 Gb/s NCCL all-reduce bus bandwidth** — right next to the
+switchless dual-rail's ~208 Gb/s — with 8-node builds (400G→4×100G breakouts,
+TP=8) also working. See the DGX-Spark forum threads on the
+[CRS812](https://forums.developer.nvidia.com/t/8x-dgx-spark-cluster-build-report-crs812-400dd-4x100g-breakouts-nemotron-3-ultra-at-tp-8/373146)
+and [200G breakout](https://forums.developer.nvidia.com/t/connectx-7-200gbe-via-mikrotik-crs812-qsfp-dd-400g-2xqsfp56-200g-breakout/357162).
+(We measured the CRS504's *100G* result specifically; we have not benchmarked a
+200G switch ourselves, so treat the CRS812 figures as community-reported.)
 
 > Measurement note: validate switched-RoCE with the **RDMA port counters**, not
 > netdev byte counters (RoCE bypasses the kernel stack, so `/sys/class/net`
