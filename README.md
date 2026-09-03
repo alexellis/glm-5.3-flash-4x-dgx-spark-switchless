@@ -222,7 +222,7 @@ management LAN.
 |---|---|
 | Your 4 node **management IPs** | The **weights**: `LibertAIDAI/GLM-5.3-Flash-NVFP4` |
 | Your **RoCE cabling** (which port on which node reaches which neighbour) | The **drafter**: `incoai/GLM-5.3-Flash-DFlash2` |
-| Your **fabric IP scheme** (a template is supplied — use any private range) | The **container image**: `radixark/vllm-glm53-flash:dflash2` |
+| Your **fabric IP scheme** (a template is supplied — use any private range) | The **container image**: `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` (public) |
 | Your **interface names** (defaults match the DGX Spark; adjust for your NICs) | The **patched NCCL 2.30.7** (skip-tree-connect, `LD_PRELOAD`) |
 | Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **bf16** (`--kv-cache-dtype auto`), KV pool 12 GiB, DFlash `num_speculative_tokens: 7`, parsers, `max-model-len 262144`) |
 | A HuggingFace token to fetch the weights (kept in your own secret store) | The **launch order** (workers 3→2→1 headless, then head 0) |
@@ -303,5 +303,5 @@ Funded by **OpenFaaS Ltd**'s investment in DGX Spark hardware and R&D time, and
 built by **Alex Ellis**. The original contribution here is the **switchless-ring
 integration** — four nodes, dual-rail RoCE, no switch — with **patched NCCL
 2.30.7** and the end-to-end TP4 + DFlash2 serve recipe, validated against real
-traffic. It stands on components from **radixark** (image), **incoai** (drafter),
+traffic. It stands on components from **tonyd2wild** (image), **incoai** (drafter),
 and the wider DGX Spark community. Full attribution in [`CREDITS.md`](CREDITS.md).

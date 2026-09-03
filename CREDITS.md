@@ -38,8 +38,9 @@ end-to-end recipe around it:
 This is an **integration**, and it depends on components and community knowledge
 that are not ours. Credit where it is due:
 
-- **Container image** — `radixark/vllm-glm53-flash:dflash2`. vLLM built for
-  GLM-5.3 with DFlash2 support on `sm_121`. Credit to **radixark**.
+- **Container image** — `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2`
+  (public). vLLM built for GLM-5.3 with DFlash2 support on `sm_121`. Credit to
+  **tonyd2wild**.
 - **Speculative drafter** — `incoai/GLM-5.3-Flash-DFlash2`. The DFlash2 drafter
   weights that make speculative decoding work for this model. Credit to **incoai**.
 - **Base weights** — `LibertAIDAI/GLM-5.3-Flash-NVFP4`. The NVFP4 checkpoint of

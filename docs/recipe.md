@@ -22,7 +22,7 @@ launcher references them):
 | `$HOME/glm53-dflash2-draft/model.safetensors` | DFlash2 speculative drafter | `incoai/GLM-5.3-Flash-DFlash2` | ✅ drafter |
 | `$HOME/nccl-patched/libnccl.so.2` | Patched **NCCL 2.30.7** (skip-tree-connect; works with glibc 2.39) | you provide — see §2 | ✅ patch |
 | `$HOME/glm53-tp4-cache/` | JIT / torch.compile / tilelang cache (created on first run) | — | — |
-| image `radixark/vllm-glm53-flash:dflash2` | vLLM + GLM-5.3 + DFlash2, built for `sm_121` | `docker pull radixark/vllm-glm53-flash:dflash2` | ✅ image |
+| image `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | vLLM + GLM-5.3 + DFlash2, built for `sm_121` (public) | `docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | ✅ image |
 
 Fetch the weights and drafter with your own HuggingFace token, held in your own
 secret store — never inline a token on a command line or commit one.
@@ -33,7 +33,7 @@ huggingface-cli download LibertAIDAI/GLM-5.3-Flash-NVFP4 \
   --local-dir "$HOME/glm53-flash-nvfp4"
 huggingface-cli download incoai/GLM-5.3-Flash-DFlash2 \
   --local-dir "$HOME/glm53-dflash2-draft"
-docker pull radixark/vllm-glm53-flash:dflash2
+docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2
 ```
 
 The launcher (`scripts/rank-launcher.sh`) asserts the three staged files exist

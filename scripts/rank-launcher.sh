@@ -43,7 +43,9 @@ CACHE_DIR="$HOME/glm53-tp4-cache"        # JIT / compile cache (created on first
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 R="${1:?usage: rank-launcher.sh <rank 0..3>}"
-IMAGE="radixark/vllm-glm53-flash:dflash2"
+# Public image (pull works without auth). Pin by digest for reproducibility:
+#   ghcr.io/tonyd2wild/vllm-glm53-flash@sha256:4def0ef644cb2e9814136dcffd5e385e21bc594f48f3b292234051904abe85a6
+IMAGE="ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2"
 NAME="glm53_tp4"
 
 # This node's management IP, discovered via the route toward the head node.
