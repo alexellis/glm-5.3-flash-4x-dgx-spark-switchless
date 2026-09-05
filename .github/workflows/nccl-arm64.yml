@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: actuated-arm64-2cpu-8gb
+    runs-on: actuated-arm64-8cpu-12gb
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
