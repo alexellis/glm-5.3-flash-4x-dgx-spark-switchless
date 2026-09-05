@@ -95,6 +95,74 @@ OpenAI-compatible endpoint (model id `glm-5.3-flash`) comes out of the head node
 
 ## Real serving numbers (measured, not marketed)
 
+### Controlled RigMark run — 5 September 2026
+
+This is the current reproducible result from the raw vLLM endpoint, with no
+gateway in the measurement path: Red Hat NVFP4 weights, BF16 KV, DFlash2 at
+static `k=7`, `reasoning_effort=low`, and the repository's released NCCL
+v0.1.0 binary mapped into all four ranks. All **15/15** generated code, prose,
+and structured outputs passed their completion gates.
+
+| Workload | Median | Observed range |
+|---|---:|---:|
+| Completed code decode | **75.2 tok/s** | 69.6–76.5 |
+| Completed prose decode | **29.8 tok/s** | 29.3–30.8 |
+| Valid structured decode | **109.6 tok/s** | 109.4–110.3 |
+| Code TTFT | **0.348 s** | 0.341–0.352 |
+| Prose TTFT | **0.272 s** | 0.263–0.282 |
+| Cold 64K prefill | **2,276 tok/s** | 2,271–2,277 |
+| Warm 64K replay | **40,859 tok/s** | 40,700–40,864 |
+| C1 short-code aggregate | **50.8 tok/s** | 46.8–53.9 |
+| C2 short-code aggregate | **75.2 tok/s** | 43.3–78.7 |
+| C4 short-code aggregate | **119.3 tok/s** | 76.1–121.9 |
+
+The structured result is a predictable-output ceiling, not a proxy for agent
+speed. The code and prose rows contain long, completed outputs; they are the
+figures to use for an interactive coding appliance.
+
+The [raw TP4 receipt](data/rigmark/glm53-redhat-nvfp4-tp4-static-k7-low-20260905T191914Z.json)
+and [shareable card](data/rigmark/glm53-redhat-nvfp4-tp4-static-k7-low-20260905T191914Z.card.txt)
+record every output, range, immutable model and drafter revision, serving image
+ID, NCCL checksum, recipe revision, and RigMark Git revision. Endpoint addresses
+and credentials are absent.
+
+### Matched TP2 → TP4 comparison
+
+Both sides used RigMark Git `d8353e93b274`, protocol 1.0.0, identical prompts,
+limits, sampling, and low-effort request bodies. This is an appliance comparison,
+not topology in isolation: TP2 used Libert NVFP4 with adaptive DFlash2; TP4 used
+Red Hat NVFP4 with static `k=7`.
+
+| Metric | TP2 | TP4 | TP4 / TP2 |
+|---|---:|---:|---:|
+| Code decode | 42.6 | **75.2** | **1.77×** |
+| Prose decode | 22.2 | **29.8** | **1.34×** |
+| Structured ceiling | 54.6 | **109.6** | **2.01×** |
+| Cold 64K prefill | 1,905 | **2,276** | **1.19×** |
+| Warm 64K replay | 11,464 | **40,859** | **3.56×** |
+| C4 short-code aggregate | 61.1 | **119.3** | **1.95×** |
+
+The [matched TP2 receipt](data/rigmark/glm53-libert-nvfp4-tp2-adaptive-low-20260905T183114Z.json)
+and [card](data/rigmark/glm53-libert-nvfp4-tp2-adaptive-low-20260905T183114Z.card.txt)
+are included so the comparison can be reproduced rather than trusted.
+
+For context, Jacopo Nardiello's earlier
+[FP8 TP4 recipe](https://github.com/jnardiello/GLM-5.3-Flash-FP8-4-DGX-Spark-Switchless)
+reported a RigMark run on the same workload family. It is useful directional
+evidence, but not a strict A/B with this run: its archived benchmark source had
+no Git identity, and it used upstream FP8 weights with dynamic `k=5/3`.
+
+| Metric | Jacopo FP8 TP4 | This NVFP4 TP4 | Difference |
+|---|---:|---:|---:|
+| Code decode | 57.5 | **75.2** | **+31%** |
+| Prose decode | **31.3** | 29.8 | −5% |
+| Structured ceiling | 71.5 | **109.6** | **+53%** |
+| Cold 64K prefill | 2,232 | **2,276** | **+2%** |
+| Warm 64K replay | 39,246 | **40,859** | **+4%** |
+| C4 short-code aggregate | 82.0 | **119.3** | **+45%** |
+
+### Daily-driver history
+
 Most recipes quote a synthetic benchmark. These are the actual serving records from
 running this deployment as a **daily driver** — real agentic coding traffic through
 an OpenAI-compatible gateway, not a load-generator. **TP4 only: figures from the
@@ -117,7 +185,7 @@ Optimise for the ratio you actually have, not the one the benchmarks advertise.
 
 ### Reproduce with the public benchmark
 
-Use [`alexellis/llm-appliance-bench`](https://github.com/alexellis/llm-appliance-bench)
+Use [`alexellis/rigmark`](https://github.com/alexellis/rigmark)
 for new TP4/TP2, quantisation, or model comparisons. It fixes the code, prose,
 structured, prefill, and concurrency workloads; records the appliance recipe;
 and refuses to compare mismatched settings by default.
@@ -126,10 +194,10 @@ Use an explicit GLM reasoning effort and the same comparison ID as the other
 appliance in the sweep:
 
 ```bash
-python3 bench.py \
+./rigmark run \
   --base-url http://HEAD:8000 \
-  --model auto \
-  --label glm53-fp8-tp4-low \
+  --model glm-5.3-flash \
+  --label glm53-nvfp4-tp4-low \
   --comparison-id YOUR-SWEEP-ID \
   --metadata metadata.json \
   --extra-body '{"chat_template_kwargs":{"reasoning_effort":"low"}}'
@@ -187,8 +255,8 @@ actually feels like.
   — the shipped window is a deliberate trade, and
   [`docs/long-context.md`](docs/long-context.md) works through exactly what
   512K or 1M would take, and what it would cost in KV.
-- Warm decode in the region of **48–51 tokens/s** for code (up to ~72 t/s warm),
-  prefill around **1,800 t/s at 32–64K** — roughly the bottom commercial
+- Controlled code decode around **75 tokens/s**, completed prose around
+  **30 tokens/s**, and cold 64K prefill around **2,276 tokens/s** — roughly the bottom commercial
   GLM-5.3 tier, on hardware you own.
 
 ---
@@ -244,11 +312,11 @@ management LAN.
 
 | You provide (site-specific) | Fixed by the recipe (do not change) |
 |---|---|
-| Your 4 node **management IPs** | The **weights**: `LibertAIDAI/GLM-5.3-Flash-NVFP4` |
+| Your 4 node **management IPs** | The **weights**: `RedHatAI/GLM-5.3-Flash-NVFP4` at the pinned revision |
 | Your **RoCE cabling** (which port on which node reaches which neighbour) | The **drafter**: `incoai/GLM-5.3-Flash-DFlash2` |
 | Your **fabric IP scheme** (a template is supplied — use any private range) | The **container image**: `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` (public) |
 | Your **interface names** (defaults match the DGX Spark; adjust for your NICs) | The **patched NCCL 2.30.7** (skip-tree-connect, `LD_PRELOAD`) |
-| Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **bf16** (`--kv-cache-dtype auto`), KV pool 12 GiB, DFlash `num_speculative_tokens: 7`, parsers, `max-model-len 262144`) |
+| Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **bf16** (`--kv-cache-dtype auto`), KV pool 12 GiB, DFlash `num_speculative_tokens: 7`, corrected official chat template, parsers, `max-model-len 262144`) |
 | A HuggingFace token to fetch the weights (kept in your own secret store) | The **launch order** (workers 3→2→1 headless, then head 0) |
 
 The whole point of the table: clone this, drop in your five values (four node IPs
@@ -272,7 +340,7 @@ mandatory whichever installation path you use.
 #    scripts/rank-launcher.sh — master (head) IP, mgmt interface, IB HCA names
 #    scripts/gate.sh          — BASE_URL of the head node
 
-# 1. Apply the ring fabric (every boot, and after any docker churn).
+# 1. Apply and verify the ring fabric (every boot, and after docker churn).
 ./scripts/fabric-setup.sh
 
 # 2. Launch the workers first (headless), then the head (opens the API).
@@ -290,6 +358,12 @@ ssh you@NODE0 'docker logs -f glm53_tp4'
 
 Container "Up" is **not** "serving". Do not announce it as ready until the gate
 in step 4 passes — see [`docs/recipe.md`](docs/recipe.md) §5.
+
+The fabric step is deliberately a hard gate: before changing anything, it
+requires all four nodes to be reachable with idle GPUs; afterwards it checks
+eight RoCE-v2 GIDs, eight MTUs, and all four jumbo ring edges. The rank launcher independently
+checks its two local rails, the published NCCL checksums, and competing GPU
+processes. A stale TP2→TP4 network state now fails before model loading begins.
 
 ---
 

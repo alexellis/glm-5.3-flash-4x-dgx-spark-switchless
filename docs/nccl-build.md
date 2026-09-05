@@ -39,12 +39,14 @@ sha256sum -c "${NCCL_ARCHIVE}.sha256"
 tar -xzf "${NCCL_ARCHIVE}"
 
 install -d "$HOME/nccl-patched"
-cp -a "${NCCL_ARCHIVE%.tar.gz}"/libnccl.so* "$HOME/nccl-patched/"
+cp -a "${NCCL_ARCHIVE%.tar.gz}"/. "$HOME/nccl-patched/"
+(cd "$HOME/nccl-patched" && sha256sum --check --ignore-missing SHA256SUMS)
 ```
 
 Keep the downloaded archive, checksum, and extracted provenance beside your
-deployment record. The archive is a convenience, not a substitute for the
-runtime ring gate below.
+deployment record. Copying the complete directory deliberately retains the
+embedded checksums which `rank-launcher.sh` verifies before every start. The
+archive is a convenience, not a substitute for the runtime ring gate below.
 
 ## Reproducible ARM64 build
 

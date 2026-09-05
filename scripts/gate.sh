@@ -3,11 +3,11 @@
 #
 # Do NOT declare the ring "serving" on a /v1/models 200 or a docker "Up".
 # This runs the three checks that actually prove it works end to end:
-#   1. Long-context needle (~30K prefill) — proves attention across the ring.
+#   1. Long-context needle (~150K prefill) — proves attention across the ring.
 #   2. Tool-call — proves the glm47 tool-call parser is emitting proper calls.
 #   3. Warm decode — one throwaway turn to fill the prefix cache, then measure t/s.
 #
-# Usage:  ./gate.sh
+# Usage:  BASE_URL=http://HEAD_IP:8000/v1 ./gate.sh
 # Requires: curl, python3.
 #
 # ─────────────────────────────────────────────────────────────────────────────
@@ -16,8 +16,8 @@
 
 # Base URL of the HEAD node's OpenAI-compatible API.
 # >>> set this to YOUR head node <<<
-BASE_URL="http://10.0.0.1:8000/v1"
-MODEL="glm-5.3-flash"
+BASE_URL="${BASE_URL:-http://10.0.0.1:8000/v1}"
+MODEL="${MODEL:-glm-5.3-flash}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -33,12 +33,12 @@ else
   echo "aborting — the endpoint is not serving $MODEL."; exit 1
 fi
 
-echo "== 1. long-context needle (~30K prefill) =="
-python3 - "$BASE_URL" "$MODEL" <<'PY'
+echo "== 1. long-context needle (~150K prefill) =="
+if python3 - "$BASE_URL" "$MODEL" <<'PY'
 import json, sys, urllib.request
 base, model = sys.argv[1], sys.argv[2]
 secret = "The vault passphrase is INDIGO-OTTER-4417."
-# ~30K tokens of filler; a paragraph repeated, with the needle buried in the middle.
+# ~150K tokens with this model's tokenizer; bury the needle in the middle.
 para = ("Routine status log entry: all subsystems nominal, no action required. " * 12 + "\n")
 n = 900
 filler = [para] * n
@@ -50,7 +50,7 @@ body = json.dumps({
     "model": model,
     "messages": [{"role": "user", "content": msg}],
     "max_tokens": 64, "temperature": 0,
-    "chat_template_kwargs": {"enable_thinking": False},
+    "chat_template_kwargs": {"reasoning_effort": "low"},
 }).encode()
 req = urllib.request.Request(base + "/chat/completions", body,
                              {"Content-Type": "application/json"})
@@ -66,10 +66,14 @@ try:
 except Exception as e:
     print(f"  FAIL: needle request error: {e}"); sys.exit(2)
 PY
-if [ $? -eq 0 ]; then pass=$((pass+1)); else fail=$((fail+1)); fi
+then
+  pass=$((pass+1))
+else
+  fail=$((fail+1))
+fi
 
 echo "== 2. tool-call (glm47 parser) =="
-python3 - "$BASE_URL" "$MODEL" <<'PY'
+if python3 - "$BASE_URL" "$MODEL" <<'PY'
 import json, sys, urllib.request
 base, model = sys.argv[1], sys.argv[2]
 tools = [{
@@ -89,6 +93,7 @@ body = json.dumps({
     "messages": [{"role": "user", "content": "What's the weather in Bristol right now? Use the tool."}],
     "tools": tools, "tool_choice": "auto",
     "max_tokens": 256, "temperature": 0,
+    "chat_template_kwargs": {"reasoning_effort": "low"},
 }).encode()
 req = urllib.request.Request(base + "/chat/completions", body,
                              {"Content-Type": "application/json"})
@@ -104,10 +109,14 @@ try:
 except Exception as e:
     print(f"  FAIL: tool-call request error: {e}"); sys.exit(2)
 PY
-if [ $? -eq 0 ]; then pass=$((pass+1)); else fail=$((fail+1)); fi
+then
+  pass=$((pass+1))
+else
+  fail=$((fail+1))
+fi
 
 echo "== 3. warm decode (throwaway turn, then measure) =="
-python3 - "$BASE_URL" "$MODEL" <<'PY'
+if python3 - "$BASE_URL" "$MODEL" <<'PY'
 import json, sys, time, urllib.request
 base, model = sys.argv[1], sys.argv[2]
 def turn(prompt, max_tokens):
@@ -115,7 +124,7 @@ def turn(prompt, max_tokens):
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": max_tokens, "temperature": 0,
-        "chat_template_kwargs": {"enable_thinking": False},
+        "chat_template_kwargs": {"reasoning_effort": "low"},
     }).encode()
     req = urllib.request.Request(base + "/chat/completions", body,
                                  {"Content-Type": "application/json"})
@@ -133,7 +142,7 @@ try:
     tps = ct / dt if dt > 0 else 0
     print(f"  warm decode: {ct} tokens in {dt:.1f}s = {tps:.1f} t/s")
     if tps >= 30:
-        print("  PASS: decode in the expected band (reference warm ~48-51 t/s code).")
+        print("  PASS: decode in the expected band (current reference ~70-76 t/s code).")
     else:
         print("  WARN: decode below 30 t/s — check MTU 9000 on both rails "
               "(1500 = ~2.7x slower, silent) and that the cache warmed.")
@@ -141,10 +150,21 @@ try:
 except Exception as e:
     print(f"  FAIL: decode request error: {e}"); sys.exit(2)
 PY
-rc=$?
-if [ $rc -eq 0 ]; then pass=$((pass+1)); elif [ $rc -eq 3 ]; then echo "  (decode warn counted as soft-fail)"; fail=$((fail+1)); else fail=$((fail+1)); fi
+then
+  pass=$((pass+1))
+else
+  rc=$?
+  if [ "$rc" -eq 3 ]; then
+    echo "  (decode warn counted as soft-fail)"
+  fi
+  fail=$((fail+1))
+fi
 
 echo
 echo "== gate summary: $pass passed, $fail failed/warned =="
-[ $fail -eq 0 ] && echo "GATE GREEN — safe to declare serving." \
-                || { echo "GATE NOT GREEN — do NOT declare serving."; exit 1; }
+if [ "$fail" -eq 0 ]; then
+  echo "GATE GREEN — safe to declare serving."
+else
+  echo "GATE NOT GREEN — do NOT declare serving."
+  exit 1
+fi

@@ -15,6 +15,12 @@ re-read it the first time something behaves oddly.
   gives you a working ring that runs all-reduce on 1500-byte packets — roughly
   **2.7× slower decode, with no error**. Set MTU 9000 and restart so NCCL
   re-inits at the new MTU. See [`fabric.md`](fabric.md).
+- **A mode switch can leave an empty RoCE GID slot.** An interface may have the
+  right IPv4 address and MTU while the configured `NCCL_IB_GID_INDEX` still
+  resolves to `::`. NCCL then waits at initialisation before eventually failing
+  `ibv_modify_qp`. Both scripts now check all eight GIDs before launch. If a GID
+  is empty, stop every GPU appliance on that node, reboot it, re-apply the ring,
+  and rerun the pre-flight. Do not keep retrying NCCL against the same state.
 - **A jumbo ping is not proof.** `ping -M do -s 8972 <peer>` can pass while the
   RDMA relay is broken. Only a completed NCCL collective (the model serving and
   passing the gate) proves the ring works.
@@ -25,14 +31,11 @@ re-read it the first time something behaves oddly.
 
 - **Order: workers 3 → 2 → 1 headless, then head 0.** The head opens the API and
   expects its workers already waiting at the rendezvous.
-- **First-collective deadlock.** The switchless ring occasionally **deadlocks at
-  the first ring all-reduce** — the logs freeze right after
-  `Using PYNCCL all-reduce backends`, memory stays flat, there is **no error**,
-  and the IB links all report `PORT_ACTIVE` / GID3 healthy. It is a state wedge,
-  not a hardware fault. **Fix: tear down all four containers
-  (`docker rm -f glm53_tp4` on every node) and relaunch.** It usually connects
-  cleanly on the retry (NCCL init ~0.14 s, "Connected all rings"). A reboot is
-  not normally needed, but re-run `fabric-setup.sh` first as a precaution.
+- **A first-collective stall is evidence, not a retry instruction.** Tear down
+  all four containers, run the complete fabric pre-flight, and correct the
+  failed rail, GID, MTU, or competing-service check. Only retry once the checks
+  are green. If every check is green, one clean four-rank retry is reasonable;
+  preserve `NCCL_DEBUG=INFO` logs if that retry also stalls.
 - **Always cycle all four ranks together.** Recreating a single rank breaks the
   torch.distributed group. Tear down and relaunch all four.
 
@@ -75,8 +78,12 @@ re-read it the first time something behaves oddly.
 
 - [ ] `fabric-setup.sh` after **every reboot** and after **docker churn**.
 - [ ] MTU **9000** on both rails, then restart containers (else ~2.7× slower, silent).
+- [ ] All **8 RoCE-v2 GIDs** are non-empty at the configured index.
+- [ ] All **4 point-to-point edges** pass a jumbo ping.
+- [ ] No competing appliance or GPU process is running on any rank; the fabric
+      script checks this **before** changing addresses.
 - [ ] Launch order: **workers 3 → 2 → 1, then head 0**.
-- [ ] First collective can deadlock → **tear down all 4 + retry**.
+- [ ] A first-collective stall → **tear down all 4 + rerun pre-flight**.
 - [ ] Always cycle **all four** ranks together.
 - [ ] KV pool **12 GiB** — higher risks an OOM hard-hang.
 - [ ] Gate with **needle + tool-call + warm decode**; a jumbo ping is not proof.

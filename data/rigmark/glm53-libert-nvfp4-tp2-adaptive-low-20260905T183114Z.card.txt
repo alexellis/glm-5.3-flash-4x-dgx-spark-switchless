@@ -1,0 +1,25 @@
+╭──────────────────────────────────────────────────────────────────────────────────────────╮
+│  R I G M A R K   //   AGENT WORKLOAD RECEIPT                                             │
+│  BENCHMARKS LOCAL AI THE WAY CODING AGENTS ACTUALLY USE IT                               │
+│  ●  15/15 OUTPUTS COMPLETE                                                               │
+├─ SYSTEM ─────────────────────────────────────────────────────────────────────────────────┤
+│  MODEL      glm-5.3-flash                                                                │
+│  APPLIANCE  2x NVIDIA DGX Spark (GB10)                                                   │
+│  RUN        reasoning=low  •  protocol=1.0.0                                             │
+│  SOURCE     git:d8353e93b274  •  clean                                                   │
+├─ REAL OUTPUT ────────────────────────────────────────────────────────────────────────────┤
+│  WORKLOAD                 MEDIAN          OBSERVED RANGE          COMPLETE               │
+│  CODE                  42.6 tok/s       39.0–44.7            ✓ 5/5                       │
+│  PROSE                 22.2 tok/s       21.8–22.3            ✓ 5/5                       │
+│  STRUCTURED*           54.6 tok/s       53.0–55.7            ✓ 5/5                       │
+│  * predictable-output ceiling; not a proxy for agent speed                               │
+├─ CONTEXT ────────────────────────────────────────────────────────────────────────────────┤
+│  64K PREFILL   cold 1,905 tok/s  •  cached replay 11,464 tok/s                           │
+├─ MULTI-AGENT LOAD ───────────────────────────────────────────────────────────────────────┤
+│  SHORT CODE • END-TO-END • 256-TOKEN CAP PER AGENT                                       │
+│  AGGREGATE   C1 31.2  •  C2 42.8  •  C4 61.1 tok/s                                       │
+├─ PROOF ──────────────────────────────────────────────────────────────────────────────────┤
+│  RECEIPT    sha256:c53c3c7cfc982b19…                                                     │
+│  SHARE THE CARD • LINK THE JSON RECEIPT • #RIGMARK                                       │
+│  github.com/alexellis/rigmark                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────╯

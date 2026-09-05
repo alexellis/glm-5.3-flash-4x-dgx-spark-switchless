@@ -18,10 +18,11 @@ launcher references them):
 
 | Path (example) | What | Source | Fixed? |
 |---|---|---|---|
-| `$HOME/glm53-flash-nvfp4/` | GLM-5.3-Flash NVFP4 checkpoint (`config.json` + ~120 shards, ~182 GiB) | `LibertAIDAI/GLM-5.3-Flash-NVFP4` | ✅ weights |
+| `$HOME/glm53-flash-nvfp4-redhat/` | GLM-5.3-Flash NVFP4 checkpoint (`config.json` + ~120 shards, ~182 GiB) | `RedHatAI/GLM-5.3-Flash-NVFP4` at `36c184c6…` | ✅ weights |
 | `$HOME/glm53-dflash2-draft/model.safetensors` | DFlash2 speculative drafter | `incoai/GLM-5.3-Flash-DFlash2` | ✅ drafter |
 | `$HOME/nccl-patched/libnccl.so.2` | Patched **NCCL 2.30.7** (skip-tree-connect; works with glibc 2.39) | build from pinned source — see §2 | ✅ patch |
 | `$HOME/glm53-tp4-cache/` | JIT / torch.compile / tilelang cache (created on first run) | — | — |
+| `templates/chat_template.jinja` | Corrected official GLM template, mounted read-only by the launcher | Z.ai revision `690b7052…`, SHA-256 `0c4099f3…` | ✅ template |
 | image `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | vLLM + GLM-5.3 + DFlash2, built for `sm_121` (public) | `docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | ✅ image |
 
 Fetch the weights and drafter with your own HuggingFace token, held in your own
@@ -29,15 +30,16 @@ secret store — never inline a token on a command line or commit one.
 
 ```bash
 # example, on each node
-huggingface-cli download LibertAIDAI/GLM-5.3-Flash-NVFP4 \
-  --local-dir "$HOME/glm53-flash-nvfp4"
+huggingface-cli download RedHatAI/GLM-5.3-Flash-NVFP4 \
+  --revision 36c184c6cda000a481711306df5adde42f63321a \
+  --local-dir "$HOME/glm53-flash-nvfp4-redhat"
 huggingface-cli download incoai/GLM-5.3-Flash-DFlash2 \
   --local-dir "$HOME/glm53-dflash2-draft"
 docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2
 ```
 
-The launcher (`scripts/rank-launcher.sh`) asserts the three staged files exist
-before it starts a container.
+The launcher (`scripts/rank-launcher.sh`) asserts the staged files exist and
+checks the template and published NCCL checksums before it starts a container.
 
 ---
 
@@ -67,12 +69,13 @@ The source inputs are pinned and inspectable:
 - NVIDIA CUDA 13.0.2 ARM64 development image, pinned by digest; and
 - CUDA architecture `sm_121`.
 
-The script fetches those sources, verifies the patch hash, applies it, runs
+The build script fetches those sources, verifies the patch hash, applies it, runs
 NCCL's `make src.build`, and checks the resulting ARM64 library and embedded
 patch markers. It creates `$HOME/nccl-patched/libnccl.so.2.30.7` plus the
-`libnccl.so.2` and `libnccl.so` symlinks. It does not download or distribute a
-prebuilt NCCL library. The complete command-level explanation and CI path are
-in [`nccl-build.md`](nccl-build.md).
+`libnccl.so.2` and `libnccl.so` symlinks. The release asset contains the output
+of that same clean CI build. Download and checksum instructions, the complete
+command-level explanation, and the CI path are in
+[`nccl-build.md`](nccl-build.md).
 
 - Place the resulting directory at `$HOME/nccl-patched/` on every node.
 - The launcher mounts it read-only at `/opt/patched-nccl` and sets both
@@ -104,6 +107,12 @@ Full addressing template and the two silent failure modes are in
   node's management IP is the `--master-addr`; the master port (example `29520`)
   must be open between nodes on the management LAN.
 
+The script first refuses to touch the fabric unless all four nodes are reachable,
+their expected rails exist, and their GPUs are idle. It then verifies all eight
+RoCE-v2 GIDs, all eight MTUs, and all four direct jumbo paths. A mode switch can leave a
+zeroed GID behind even while `ip addr` looks correct; the script stops there and
+gives the recovery rather than letting four model ranks hang in NCCL.
+
 ---
 
 ## 4. Launch — workers first, head last
@@ -112,7 +121,7 @@ Order matters. Bring up ranks **3, 2, 1 headless**, then **0** (which opens the
 API). From your operator box:
 
 ```bash
-./scripts/fabric-setup.sh                                   # after any reboot / docker churn
+./scripts/fabric-setup.sh                                   # must finish with "pre-flight passed"
 ssh you@NODE3 '~/.../scripts/rank-launcher.sh 3'
 ssh you@NODE2 '~/.../scripts/rank-launcher.sh 2'
 ssh you@NODE1 '~/.../scripts/rank-launcher.sh 1'
@@ -133,12 +142,14 @@ them unless you understand the consequence.
   --served-model-name glm-5.3-flash --trust-remote-code
   --tensor-parallel-size 4 --nnodes 4 --node-rank <R>
   --master-addr <HEAD_MGMT_IP> --master-port <MPORT>
-  --gpu-memory-utilization 0.85 --max-model-len 262144
+  --gpu-memory-utilization 0.82 --max-model-len 262144
   --max-num-seqs 6 --max-num-batched-tokens 8192 --block-size 2304 --moe-backend marlin
+  --limit-mm-per-prompt '{"image":16}'
   --kv-cache-dtype auto --kv-cache-memory 12884901888       # bf16 KV, 12 GiB — see gotchas
   --speculative-config '{"method":"dflash","model":"/draft","num_speculative_tokens":7}'
   --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45
-  --default-chat-template-kwargs '{"enable_thinking": true}'
+  --chat-template /opt/glm53/chat_template.jinja
+  --default-chat-template-kwargs '{"reasoning_effort":"max"}'
   --distributed-executor-backend mp
   <--host 0.0.0.0 --port 8000  for rank 0  |  --headless  for ranks 1–3>
 ```
@@ -211,14 +222,14 @@ Mounts: `glm53-flash-nvfp4 → /model:ro`, `glm53-dflash2-draft → /draft:ro`,
 Do **not** announce "up" on a `/v1/models` 200 or a `docker ps` "Up". Run all
 three checks (`scripts/gate.sh` automates them) and quote the evidence:
 
-1. **Long-context needle (~30K prefill).** Bury a fact in ~30K tokens of filler
+1. **Long-context needle (~150K prefill).** Bury a fact in ~150K tokens of filler
    and ask for it back; it must be retrieved coherently. This proves long-context
    attention *across the ring*, not just a short-prompt reply.
 2. **Tool-call.** A request that forces a tool call; the response must contain a
    properly `glm47`-parsed tool call.
 3. **Warm decode.** One throwaway turn to fill the prefix cache, then measure.
-   Expect **~48–51 t/s** code decode (up to ~72 warm), prefill **~1,800 t/s at
-   32–64K**. Cold first turns decode slowly with `cached=0` — that is an empty
+   The current controlled run reaches **~70–76 t/s** completed code decode and
+   **~2,276 t/s** cold 64K prefill. Cold first turns decode slowly with `cached=0` — that is an empty
    prefix cache, not a regression.
 
 Reference point: this is roughly the **bottom commercial GLM-5.3 tier**. Matching
@@ -230,9 +241,11 @@ in a different tier.
 ## 6. Consuming the endpoint (client note)
 
 Point any OpenAI-compatible client at `http://<head-node>:8000/v1`, model id
-`glm-5.3-flash`. The context window is 262,144 and thinking is on by default
-(binary thinking via `chat_template_kwargs.enable_thinking`, glm45 reasoning
-parser).
+`glm-5.3-flash`. The context window is 262,144 and reasoning defaults to `max`.
+Send `chat_template_kwargs.reasoning_effort` as `low`, `high`, or `max`; the
+old `enable_thinking` key is not read by the official GLM-5.3 template. The
+launcher pins the corrected upstream template rather than trusting whichever
+copy happened to ship inside a quantised checkpoint.
 
 ### The output-cap trap (worth knowing if you use opencode)
 

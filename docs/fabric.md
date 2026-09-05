@@ -85,6 +85,9 @@ The example scripts default to the DGX Spark's NIC names. Adjust to your hardwar
 4. Enable IP forwarding and re-assert `DOCKER-USER` ACCEPT rules for the fabric
    interfaces (docker churn drops these — hence re-applying after docker
    up/down).
+5. Refuse to continue unless every rail is `ACTIVE`, every configured GID is a
+   non-empty RoCE-v2 address, every MTU is 9000, and every point-to-point edge
+   carries an 8972-byte jumbo ping.
 
 Because a ring rank only exchanges collectives with its two immediate neighbours,
 point-to-point addressing on directly-cabled links is what matters. If your
@@ -112,6 +115,15 @@ A clean `ping -M do -s 8972 <peer>` proves the L2/L3 path and MTU, but it does
 The only proof the ring is healthy is a **completed NCCL collective** — i.e. the
 model actually serving and passing the correctness gate. Do not trust ping alone.
 
+### 3. IPv4 is present but the selected GID is empty
+
+Changing between a two-node pair and a four-node ring can remove and recreate an
+address without immediately compacting the NIC's GID table. `ip addr` looks
+correct, but (for the default recipe) `gids/3` is all zeroes. NCCL will not heal
+this state by being restarted. `fabric-setup.sh` now detects it before any model
+is launched. Stop GPU services, reboot the affected node, re-apply the ring, and
+rerun the check.
+
 ---
 
 ## Verifying
@@ -119,4 +131,6 @@ model actually serving and passing the correctness gate. Do not trust ping alone
 - Jumbo path (necessary, not sufficient): `ping -M do -s 8972 <neighbour-fabric-ip>`
 - MTU actually applied: `ip link show <rail-if>` shows `mtu 9000`.
 - Addresses present: `ip -4 addr show <rail-if>`.
+- GID type and value: `gid_attrs/types/3` says `RoCE v2`, and `gids/3` is not all
+  zeroes, on both HCAs on every node.
 - The real proof: the correctness gate in [`recipe.md`](recipe.md) §5 passes.

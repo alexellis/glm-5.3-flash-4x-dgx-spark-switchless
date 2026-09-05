@@ -1,0 +1,18 @@
+name: validate recipe
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate recipe and receipts
+        run: ./scripts/check-recipe.sh
