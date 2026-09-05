@@ -45,10 +45,17 @@ The script:
 The CUDA build image is a 3.66 GiB compressed one-time pull. It is compiler
 userspace, not a driver stack. Nothing in the build invokes a GPU.
 
-The repository's ARM workflow runs the same builder on an Actuated ARM64
-runner. It deliberately does **not** upload the resulting `.so` as an artefact
-or release asset. Operators build the library from the pinned, inspectable
-source inputs.
+The repository's ordinary push and pull-request workflow runs the same builder
+on an Actuated ARM64 runner without retaining the resulting `.so`. A separate
+tag-triggered publish workflow rebuilds it from those pinned inputs and uploads
+a versioned archive plus its SHA256 to the existing GitHub release using
+`alexellis/upload-assets`.
+
+The release archive includes the versioned library and symlinks, this
+provenance document, the exact applied patch, its SHA256, and the NVIDIA NCCL,
+Sparkring, and recipe licences. A published binary has passed the source,
+architecture, version, and embedded-marker checks; it has not passed a live
+RoCE collective merely by being built in CI.
 
 Copy the resulting `nccl-patched/` directory to the same path on all four
 Sparks. The launcher bind-mounts it read-only and selects it through
@@ -70,4 +77,3 @@ gates. An ARM CI runner without a GPU cannot validate RoCE collectives.
 
 Sources: [NVIDIA NCCL](https://github.com/NVIDIA/nccl),
 [pinned switchless patch](https://github.com/FujitsuPolycom/sparkring/blob/b70e127e8bda797e38afd9a1cefe1eb3ca790d2f/spark_transport/nccl/nccl-2.30.7-skip-tree-pat.patch).
-

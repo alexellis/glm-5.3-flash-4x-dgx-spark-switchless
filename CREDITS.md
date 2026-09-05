@@ -53,7 +53,8 @@ that are not ours. Credit where it is due:
   and 2-node DFlash2 recipes this scales up from owe a lot to that work.
 - **NCCL skip-tree/PAT source patch** — the pinned Apache-2.0 patch from
   **FujitsuPolycom/sparkring**. This repository builds it against NVIDIA NCCL
-  2.30.7; it does not redistribute a prebuilt NCCL binary.
+  2.30.7. Any release binary is rebuilt from the pinned source in public CI and
+  packaged with the exact patch, provenance, licences, and checksums.
 
 ## Licence
 

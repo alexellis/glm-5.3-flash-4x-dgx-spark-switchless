@@ -6,13 +6,17 @@ on:
       - master
     paths:
       - scripts/build-nccl.sh
+      - scripts/package-nccl.sh
       - docs/nccl-build.md
       - .github/workflows/nccl-arm64.yml
+      - .github/workflows/publish.yml
   pull_request:
     paths:
       - scripts/build-nccl.sh
+      - scripts/package-nccl.sh
       - docs/nccl-build.md
       - .github/workflows/nccl-arm64.yml
+      - .github/workflows/publish.yml
   workflow_dispatch:
 
 permissions:
@@ -26,3 +30,5 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build and verify NCCL from source
         run: ./scripts/build-nccl.sh "$RUNNER_TEMP/nccl-patched"
+      - name: Build the release bundle
+        run: ./scripts/package-nccl.sh "$RUNNER_TEMP/nccl-patched" "$RUNNER_TEMP/release"
