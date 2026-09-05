@@ -23,11 +23,12 @@ end-to-end recipe around it:
 
 - Four DGX Spark nodes joined into a **closed RoCE ring with no switch**, using
   **dual RoCE rails per node** (a pair edge and a cross edge).
-- A **patched NCCL 2.30.7** (skip-tree-connect, `LD_PRELOAD`-ed) that lets the
-  collectives form reliably on a switch-free point-to-point fabric — together
-  with the pinned NCCL runtime profile tuned for this topology. To answer a
-  recurring question directly: **Sparkring/SIRCL is not part of this stack**,
-  and the ring was validated with it absent.
+- The integration of a **patched NCCL 2.30.7** (skip-tree-connect,
+  `LD_PRELOAD`-ed) with the pinned runtime profile for this topology. The
+  two-hunk NCCL source patch comes from **FujitsuPolycom/sparkring** under
+  Apache-2.0 and is now pinned and credited in
+  [`docs/nccl-build.md`](docs/nccl-build.md). Sparkring/SIRCL's custom
+  transport is not part of this stack; the ring was validated without it.
 - The end-to-end **TP4 + DFlash2 serve recipe**: launch order, fabric-addressing
   template, correctness gate, KV and quant choices, and the operational gotchas
   that make it repeatable — validated against real serving traffic, not just a
@@ -50,6 +51,9 @@ that are not ours. Credit where it is due:
   informed by the wider DGX Spark community's shared work on serving large MoE
   models on GB10, including **tonyd2wild**, **Mia**, and **0xdfi**. The single-node
   and 2-node DFlash2 recipes this scales up from owe a lot to that work.
+- **NCCL skip-tree/PAT source patch** — the pinned Apache-2.0 patch from
+  **FujitsuPolycom/sparkring**. This repository builds it against NVIDIA NCCL
+  2.30.7; it does not redistribute a prebuilt NCCL binary.
 
 ## Licence
 

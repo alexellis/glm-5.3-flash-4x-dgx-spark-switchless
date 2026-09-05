@@ -20,7 +20,7 @@ launcher references them):
 |---|---|---|---|
 | `$HOME/glm53-flash-nvfp4/` | GLM-5.3-Flash NVFP4 checkpoint (`config.json` + ~120 shards, ~182 GiB) | `LibertAIDAI/GLM-5.3-Flash-NVFP4` | ✅ weights |
 | `$HOME/glm53-dflash2-draft/model.safetensors` | DFlash2 speculative drafter | `incoai/GLM-5.3-Flash-DFlash2` | ✅ drafter |
-| `$HOME/nccl-patched/libnccl.so.2` | Patched **NCCL 2.30.7** (skip-tree-connect; works with glibc 2.39) | you provide — see §2 | ✅ patch |
+| `$HOME/nccl-patched/libnccl.so.2` | Patched **NCCL 2.30.7** (skip-tree-connect; works with glibc 2.39) | build from pinned source — see §2 | ✅ patch |
 | `$HOME/glm53-tp4-cache/` | JIT / torch.compile / tilelang cache (created on first run) | — | — |
 | image `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | vLLM + GLM-5.3 + DFlash2, built for `sm_121` (public) | `docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | ✅ image |
 
@@ -49,9 +49,32 @@ stock library. The stock tree-connect step assumes a switched fabric can form
 the NCCL tree; on a bare point-to-point ring that step wedges, so it is skipped
 and the ring algorithm is used directly.
 
-- Build or obtain `libnccl.so.2` for NCCL **2.30.7** with the skip-tree-connect
-  patch, compatible with your container's glibc (glibc 2.39 is fine).
-- Place it at `$HOME/nccl-patched/libnccl.so.2` on every node.
+Build the ARM64 library on any ARM64 Linux machine with Docker; no NVIDIA GPU,
+driver, host CUDA installation, or NVIDIA Container Toolkit is required:
+
+```bash
+./scripts/build-nccl.sh "$HOME/nccl-patched"
+```
+
+The source inputs are pinned and inspectable:
+
+- NVIDIA NCCL `v2.30.7-1`, commit
+  `73cf112295c33aee2b895f329f592f2a9b4b0f97`;
+- FujitsuPolycom/sparkring's Apache-2.0
+  [skip-tree/PAT patch](https://github.com/FujitsuPolycom/sparkring/blob/b70e127e8bda797e38afd9a1cefe1eb3ca790d2f/spark_transport/nccl/nccl-2.30.7-skip-tree-pat.patch),
+  commit `b70e127e8bda797e38afd9a1cefe1eb3ca790d2f`, SHA256
+  `097656d07a5774919f0d51558b51ec05de8168c0097ed6cb7764c33230ba6eb2`;
+- NVIDIA CUDA 13.0.2 ARM64 development image, pinned by digest; and
+- CUDA architecture `sm_121`.
+
+The script fetches those sources, verifies the patch hash, applies it, runs
+NCCL's `make src.build`, and checks the resulting ARM64 library and embedded
+patch markers. It creates `$HOME/nccl-patched/libnccl.so.2.30.7` plus the
+`libnccl.so.2` and `libnccl.so` symlinks. It does not download or distribute a
+prebuilt NCCL library. The complete command-level explanation and CI path are
+in [`nccl-build.md`](nccl-build.md).
+
+- Place the resulting directory at `$HOME/nccl-patched/` on every node.
 - The launcher mounts it read-only at `/opt/patched-nccl` and sets both
   `LD_PRELOAD` and `VLLM_NCCL_SO_PATH` to it, plus `NCCL_SKIP_TREE_CONNECT=1`.
 

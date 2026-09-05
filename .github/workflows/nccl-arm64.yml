@@ -1,0 +1,28 @@
+name: NCCL ARM64 source build
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - scripts/build-nccl.sh
+      - docs/nccl-build.md
+      - .github/workflows/nccl-arm64.yml
+  pull_request:
+    paths:
+      - scripts/build-nccl.sh
+      - docs/nccl-build.md
+      - .github/workflows/nccl-arm64.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: actuated-arm64-2cpu-8gb
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and verify NCCL from source
+        run: ./scripts/build-nccl.sh "$RUNNER_TEMP/nccl-patched"
