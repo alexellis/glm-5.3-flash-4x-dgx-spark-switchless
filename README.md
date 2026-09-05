@@ -115,6 +115,29 @@ decode rate.** A warm re-prefill of a ~19K-token turn in about two seconds is wh
 makes the interactive loop feel instant; the decode t/s is almost a footnote.
 Optimise for the ratio you actually have, not the one the benchmarks advertise.
 
+### Reproduce with the public benchmark
+
+Use [`alexellis/llm-appliance-bench`](https://github.com/alexellis/llm-appliance-bench)
+for new TP4/TP2, quantisation, or model comparisons. It fixes the code, prose,
+structured, prefill, and concurrency workloads; records the appliance recipe;
+and refuses to compare mismatched settings by default.
+
+Use an explicit GLM reasoning effort and the same comparison ID as the other
+appliance in the sweep:
+
+```bash
+python3 bench.py \
+  --base-url http://HEAD:8000 \
+  --model auto \
+  --label glm53-fp8-tp4-low \
+  --comparison-id YOUR-SWEEP-ID \
+  --metadata metadata.json \
+  --extra-body '{"chat_template_kwargs":{"reasoning_effort":"low"}}'
+```
+
+Publish the unedited result JSON. A tok/s figure whose completion gate fails
+must not be presented as completed code, prose, or valid structured output.
+
 ### Concurrency
 
 This deployment serves **two humans plus their coding agents daily**, and the
