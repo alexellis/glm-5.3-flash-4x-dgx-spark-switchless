@@ -260,11 +260,11 @@ deployment.
 ## Quickstart
 
 Assumes the weights, drafter, patched NCCL, and image are staged on every node.
-The NCCL library is reproducibly built from pinned source—without a GPU—using
-[`scripts/build-nccl.sh`](scripts/build-nccl.sh); see
-[`docs/nccl-build.md`](docs/nccl-build.md). Tagged releases can also carry the
-same source-built library with its patch, provenance, licences, and checksums;
-the live RoCE gate remains mandatory.
+Download the verified NCCL release asset or build the identical library from
+pinned source—without a GPU—using `scripts/build-nccl.sh`. The exact commands,
+patch provenance, licences, and checks are in
+[`docs/nccl-build.md`](docs/nccl-build.md). The live RoCE gate remains
+mandatory whichever installation path you use.
 
 ```bash
 # 0. Edit the variables at the top of each script for your site.

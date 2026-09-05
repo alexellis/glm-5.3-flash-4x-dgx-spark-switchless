@@ -23,6 +23,29 @@ The two-hunk patch is from FujitsuPolycom/sparkring and is Apache-2.0 licensed:
 This recipe uses the NCCL patch only. It does not load Sparkring/SIRCL or its
 custom transport at runtime.
 
+## Download the verified ARM64 release
+
+The quickest path is the source-built release asset. Run this on each Spark:
+
+```bash
+NCCL_RELEASE=v0.1.0
+NCCL_ARCHIVE=nccl-2.30.7-skip-tree-pat-sm121-linux-arm64.tar.gz
+
+curl -fLO \
+  "https://github.com/alexellis/glm-5.3-flash-4x-dgx-spark-switchless/releases/download/${NCCL_RELEASE}/${NCCL_ARCHIVE}"
+curl -fLO \
+  "https://github.com/alexellis/glm-5.3-flash-4x-dgx-spark-switchless/releases/download/${NCCL_RELEASE}/${NCCL_ARCHIVE}.sha256"
+sha256sum -c "${NCCL_ARCHIVE}.sha256"
+tar -xzf "${NCCL_ARCHIVE}"
+
+install -d "$HOME/nccl-patched"
+cp -a "${NCCL_ARCHIVE%.tar.gz}"/libnccl.so* "$HOME/nccl-patched/"
+```
+
+Keep the downloaded archive, checksum, and extracted provenance beside your
+deployment record. The archive is a convenience, not a substitute for the
+runtime ring gate below.
+
 ## Reproducible ARM64 build
 
 Run from an ARM64 Linux host with ordinary Docker. The host does not need an
