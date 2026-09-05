@@ -40,12 +40,15 @@ docker run --rm \
     --entrypoint bash \
     -e HOME=/tmp \
     -e BUILD_JOBS="$(nproc)" \
+    -e HOST_UID="$(id -u)" \
+    -e HOST_GID="$(id -g)" \
     -v "$BUILD_DIR/nccl:/src" \
     -w /src \
     "$CUDA_IMAGE" \
     -ceu '
+        trap '\''chown -R "$HOST_UID:$HOST_GID" /src/build 2>/dev/null || true'\'' EXIT
         apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-minimal
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3
         rm -rf /var/lib/apt/lists/*
         make -j"$BUILD_JOBS" src.build \
             CUDA_HOME=/usr/local/cuda \
