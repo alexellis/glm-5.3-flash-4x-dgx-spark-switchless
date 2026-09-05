@@ -7,14 +7,18 @@ on:
     paths:
       - scripts/build-nccl.sh
       - scripts/package-nccl.sh
+      - scripts/verify-nccl.sh
       - docs/nccl-build.md
+      - LICENSE
       - .github/workflows/nccl-arm64.yml
       - .github/workflows/publish.yml
   pull_request:
     paths:
       - scripts/build-nccl.sh
       - scripts/package-nccl.sh
+      - scripts/verify-nccl.sh
       - docs/nccl-build.md
+      - LICENSE
       - .github/workflows/nccl-arm64.yml
       - .github/workflows/publish.yml
   workflow_dispatch:
@@ -28,7 +32,16 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
-      - name: Build and verify NCCL from source
+      - name: Restore the compiled NCCL library
+        id: nccl-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/nccl-patched
+          key: nccl-sm121-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-nccl.sh') }}
+      - name: Build NCCL from source
+        if: steps.nccl-cache.outputs.cache-hit != 'true'
         run: ./scripts/build-nccl.sh "$RUNNER_TEMP/nccl-patched"
+      - name: Verify the compiled NCCL library
+        run: ./scripts/verify-nccl.sh "$RUNNER_TEMP/nccl-patched"
       - name: Build the release bundle
         run: ./scripts/package-nccl.sh "$RUNNER_TEMP/nccl-patched" "$RUNNER_TEMP/release"

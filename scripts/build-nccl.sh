@@ -61,13 +61,5 @@ install -m 0755 "$BUILD_DIR/nccl/build/lib/libnccl.so.2.30.7" \
 ln -sfn libnccl.so.2.30.7 "$OUTPUT_DIR/libnccl.so.2"
 ln -sfn libnccl.so.2 "$OUTPUT_DIR/libnccl.so"
 
-file "$OUTPUT_DIR/libnccl.so.2.30.7" | grep -Eq 'ARM aarch64|ARM64'
-strings "$OUTPUT_DIR/libnccl.so.2.30.7" |
-    grep -Fq 'NCCL version 2.30.7 compiled with CUDA 13.0'
-strings "$OUTPUT_DIR/libnccl.so.2.30.7" |
-    grep -Fq 'SWITCHLESS: skipping ncclTransportTreeConnect'
-strings "$OUTPUT_DIR/libnccl.so.2.30.7" |
-    grep -Fq 'SWITCHLESS: skipping ncclTransportPatConnect'
-
-sha256sum "$OUTPUT_DIR/libnccl.so.2.30.7"
+"$(dirname "$0")/verify-nccl.sh" "$OUTPUT_DIR"
 echo "built $OUTPUT_DIR/libnccl.so.2.30.7"

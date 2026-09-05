@@ -71,10 +71,20 @@ The CUDA build image is a 3.66 GiB compressed one-time pull. It is compiler
 userspace, not a driver stack. Nothing in the build invokes a GPU.
 
 The repository's ordinary push and pull-request workflow runs the same builder
-on an Actuated ARM64 runner without retaining the resulting `.so`. A separate
-tag-triggered publish workflow rebuilds it from those pinned inputs and uploads
-a versioned archive plus its SHA256 to the existing GitHub release using
-`alexellis/upload-assets`.
+on an Actuated ARM64 runner. It is path-filtered, so unrelated changes such as
+editing the top-level README do not start an NCCL job. Changes to build,
+verification, packaging, provenance, or workflow inputs do start one.
+
+The compiled library is retained with `actions/cache`. Its exact-only cache key
+includes the runner OS and architecture plus the SHA256 of `build-nccl.sh`,
+which contains the pinned NCCL commit, patch commit and checksum, CUDA image
+digest, target architecture, and compiler flags. There is deliberately no
+prefix fallback to an older build. Every restored library is rechecked for its
+architecture, version, patch markers, and symlinks before packaging.
+
+A separate tag-triggered publish workflow restores the same exact build when
+available, or builds it on a cache miss, and uploads a versioned archive plus
+its SHA256 to the existing GitHub release using `alexellis/upload-assets`.
 
 The release archive includes the versioned library and symlinks, this
 provenance document, the exact applied patch, its SHA256, and the NVIDIA NCCL,

@@ -16,8 +16,17 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
-      - name: Build and verify NCCL from source
+      - name: Restore the compiled NCCL library
+        id: nccl-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/nccl-patched
+          key: nccl-sm121-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/build-nccl.sh') }}
+      - name: Build NCCL from source
+        if: steps.nccl-cache.outputs.cache-hit != 'true'
         run: ./scripts/build-nccl.sh "$RUNNER_TEMP/nccl-patched"
+      - name: Verify the compiled NCCL library
+        run: ./scripts/verify-nccl.sh "$RUNNER_TEMP/nccl-patched"
       - name: Package NCCL with provenance
         run: ./scripts/package-nccl.sh "$RUNNER_TEMP/nccl-patched" ./bin
       - name: Upload release assets
