@@ -23,6 +23,6 @@ jobs:
     runs-on: actuated-arm64-8cpu-12gb
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and verify NCCL from source
         run: ./scripts/build-nccl.sh "$RUNNER_TEMP/nccl-patched"

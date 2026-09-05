@@ -37,15 +37,20 @@ echo "$PATCH_SHA256  $BUILD_DIR/nccl-skip-tree.patch" | sha256sum -c -
 git -C "$BUILD_DIR/nccl" apply "$BUILD_DIR/nccl-skip-tree.patch"
 
 docker run --rm \
-    --entrypoint make \
-    --user "$(id -u):$(id -g)" \
+    --entrypoint bash \
     -e HOME=/tmp \
+    -e BUILD_JOBS="$(nproc)" \
     -v "$BUILD_DIR/nccl:/src" \
     -w /src \
     "$CUDA_IMAGE" \
-    -j"$(nproc)" src.build \
-        CUDA_HOME=/usr/local/cuda \
-        NVCC_GENCODE='-gencode=arch=compute_121,code=sm_121'
+    -ceu '
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-minimal
+        rm -rf /var/lib/apt/lists/*
+        make -j"$BUILD_JOBS" src.build \
+            CUDA_HOME=/usr/local/cuda \
+            NVCC_GENCODE="-gencode=arch=compute_121,code=sm_121"
+    '
 
 install -d -m 0755 "$OUTPUT_DIR"
 install -m 0755 "$BUILD_DIR/nccl/build/lib/libnccl.so.2.30.7" \
