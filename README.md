@@ -103,6 +103,14 @@ static `k=7`, `reasoning_effort=low`, and the repository's released NCCL
 v0.1.0 binary mapped into all four ranks. All **15/15** generated code, prose,
 and structured outputs passed their completion gates.
 
+The serving image in this measurement was our local experimental
+`radixark/vllm-glm53-flash:dflash2` build; its per-rank image IDs and vLLM
+revision are disclosed in the receipt, but the image is not distributed. The
+launcher below deliberately uses Tony's pinned public image instead. The
+fabric, released NCCL, weights, drafter, and serve settings are reproducible;
+do not present the speed table as an image-for-image result from the public
+launcher until that image has run the same receipt.
+
 | Workload | Median | Observed range |
 |---|---:|---:|
 | Completed code decode | **75.2 tok/s** | 69.6–76.5 |
