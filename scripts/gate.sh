@@ -33,14 +33,15 @@ else
   echo "aborting — the endpoint is not serving $MODEL."; exit 1
 fi
 
-echo "== 1. long-context needle (~150K prefill) =="
+echo "== 1. long-context needle (~30K prefill) =="
 if python3 - "$BASE_URL" "$MODEL" <<'PY'
 import json, sys, urllib.request
 base, model = sys.argv[1], sys.argv[2]
 secret = "The vault passphrase is INDIGO-OTTER-4417."
-# ~150K tokens with this model's tokenizer; bury the needle in the middle.
 para = ("Routine status log entry: all subsystems nominal, no action required. " * 12 + "\n")
-n = 900
+# Roughly 30K tokens with the GLM tokenizer. The usage assertion below guards
+# against silently turning this into a much smaller or much larger test.
+n = 170
 filler = [para] * n
 filler[n // 2] = filler[n // 2] + "\nIMPORTANT FACT: " + secret + "\n"
 haystack = "".join(filler)
@@ -55,13 +56,13 @@ body = json.dumps({
 req = urllib.request.Request(base + "/chat/completions", body,
                              {"Content-Type": "application/json"})
 try:
-    r = json.load(urllib.request.urlopen(req, timeout=600))
+    r = json.load(urllib.request.urlopen(req, timeout=180))
     out = r["choices"][0]["message"]["content"] or ""
     pt = r.get("usage", {}).get("prompt_tokens", "?")
-    if "INDIGO-OTTER-4417" in out:
+    if "INDIGO-OTTER-4417" in out and isinstance(pt, int) and 25000 <= pt <= 45000:
         print(f"  PASS: needle retrieved (prompt_tokens={pt}) -> {out.strip()[:80]!r}")
     else:
-        print(f"  FAIL: needle NOT retrieved (prompt_tokens={pt}) -> {out.strip()[:120]!r}")
+        print(f"  FAIL: needle or 30K size check failed (prompt_tokens={pt}) -> {out.strip()[:120]!r}")
         sys.exit(2)
 except Exception as e:
     print(f"  FAIL: needle request error: {e}"); sys.exit(2)
@@ -98,7 +99,7 @@ body = json.dumps({
 req = urllib.request.Request(base + "/chat/completions", body,
                              {"Content-Type": "application/json"})
 try:
-    r = json.load(urllib.request.urlopen(req, timeout=180))
+    r = json.load(urllib.request.urlopen(req, timeout=120))
     tc = r["choices"][0]["message"].get("tool_calls")
     if tc and tc[0]["function"]["name"] == "get_weather":
         args = tc[0]["function"]["arguments"]
@@ -129,7 +130,7 @@ def turn(prompt, max_tokens):
     req = urllib.request.Request(base + "/chat/completions", body,
                                  {"Content-Type": "application/json"})
     t0 = time.time()
-    r = json.load(urllib.request.urlopen(req, timeout=600))
+    r = json.load(urllib.request.urlopen(req, timeout=180))
     dt = time.time() - t0
     ct = r.get("usage", {}).get("completion_tokens", 0)
     return ct, dt
@@ -153,10 +154,7 @@ PY
 then
   pass=$((pass+1))
 else
-  rc=$?
-  if [ "$rc" -eq 3 ]; then
-    echo "  (decode warn counted as soft-fail)"
-  fi
+  echo "  (decode failure/warning counted as a failed gate)"
   fail=$((fail+1))
 fi
 

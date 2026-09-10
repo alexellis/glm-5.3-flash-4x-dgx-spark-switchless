@@ -29,6 +29,11 @@ re-read it the first time something behaves oddly.
 
 ## Launch
 
+- **Start only on four empty GPUs.** Check `nvidia-smi
+  --query-compute-apps=pid,process_name,used_memory --format=csv,noheader` on
+  every rank. A supervised TP2 service can recreate its container after a
+  manual `docker rm`; stop the owning service, not just the container. The rank
+  launcher now refuses to start while any competing compute process exists.
 - **Order: workers 3 → 2 → 1 headless, then head 0.** The head opens the API and
   expects its workers already waiting at the rendezvous.
 - **A first-collective stall is evidence, not a retry instruction.** Tear down
@@ -38,6 +43,21 @@ re-read it the first time something behaves oddly.
   preserve `NCCL_DEBUG=INFO` logs if that retry also stalls.
 - **Always cycle all four ranks together.** Recreating a single rank breaks the
   torch.distributed group. Tear down and relaunch all four.
+- **Use bounded, observable phases.** `Connected all rings` normally appears in
+  well under a minute (the known-good TP4 initialisation is about 0.14 s once
+  all ranks rendezvous). Give the collective phase 90 seconds, polling
+  container state, log progress, and GPU memory every 5 seconds. Weight loading
+  and graph capture may then take several minutes, but must keep advancing;
+  report progress every 15 seconds and use a 15-minute API-readiness deadline.
+  Log silence with flat low memory is a failure, not permission to wait longer.
+- **Retry once, then diagnose.** After one collective failure, remove all four
+  containers, re-apply the fabric, and relaunch once. If that attempt fails,
+  set `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on every rank and act on the
+  first causal error. Do not keep recycling the cluster or wait indefinitely.
+- **Treat `ibv_modify_qp` as actionable.** Repeated INIT→RTR timeouts identify
+  the local HCA/GID and remote GID. First re-check that no competing model
+  server has returned, then check the named path and its forwarding neighbour;
+  jumbo ICMP alone does not validate the RDMA QP.
 
 ---
 
@@ -84,6 +104,8 @@ re-read it the first time something behaves oddly.
       script checks this **before** changing addresses.
 - [ ] Launch order: **workers 3 → 2 → 1, then head 0**.
 - [ ] A first-collective stall → **tear down all 4 + rerun pre-flight**.
+- [ ] Collective deadline **90 s**; API-readiness deadline **15 min**, with
+      visible progress and no indefinite retry.
 - [ ] Always cycle **all four** ranks together.
 - [ ] KV pool **12 GiB** — higher risks an OOM hard-hang.
 - [ ] Gate with **needle + tool-call + warm decode**; a jumbo ping is not proof.

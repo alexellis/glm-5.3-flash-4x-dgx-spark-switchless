@@ -50,6 +50,7 @@ CHAT_TEMPLATE="$REPO_ROOT/templates/chat_template.jinja"
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 R="${1:?usage: rank-launcher.sh <rank 0..3>}"
+case "$R" in 0|1|2|3) ;; *) echo "rank must be 0, 1, 2, or 3" >&2; exit 2 ;; esac
 # Public image (pull works without auth). Pin by digest for reproducibility:
 #   ghcr.io/tonyd2wild/vllm-glm53-flash@sha256:4def0ef644cb2e9814136dcffd5e385e21bc594f48f3b292234051904abe85a6
 IMAGE="ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2"
@@ -92,6 +93,9 @@ check_hca() {
 
 # This node's management IP, discovered via the route toward the head node.
 MIP=$(ip -4 route get "$MASTER" 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print $2}')
+: "${MIP:?could not determine node management IP}"
+NCCL_DEBUG="${NCCL_DEBUG:-WARN}"
+NCCL_DEBUG_SUBSYS="${NCCL_DEBUG_SUBSYS:-INIT,NET}"
 
 # Pre-flight: refuse a slow, stale, or competing appliance state.
 test -f "$MODEL_DIR/config.json"        || { echo "missing $MODEL_DIR/config.json" >&2; exit 1; }
@@ -149,7 +153,7 @@ docker run -d --name "$NAME" --restart no \
   -e NCCL_IB_MERGE_NICS=0 \
   -e NCCL_ALGO=Ring -e NCCL_PROTO=LL,LL128,Simple -e NCCL_P2P_LEVEL=SYS \
   -e NCCL_MIN_NCHANNELS=4 -e NCCL_MAX_NCHANNELS=4 -e NCCL_CROSS_NIC=1 -e NCCL_CUMEM_ENABLE=0 \
-  -e NCCL_IGNORE_CPU_AFFINITY=1 -e NCCL_DEBUG=WARN \
+  -e NCCL_IGNORE_CPU_AFFINITY=1 -e NCCL_DEBUG="$NCCL_DEBUG" -e NCCL_DEBUG_SUBSYS="$NCCL_DEBUG_SUBSYS" \
   -e VLLM_ONE_GPU_PER_NODE=1 -e PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
   -e HF_HUB_OFFLINE=1 -e TRANSFORMERS_OFFLINE=1 -e PYTHONUNBUFFERED=1 \
   -e HF_HOME=/cache/hf -e XDG_CACHE_HOME=/cache -e VLLM_CACHE_ROOT=/cache/vllm \
