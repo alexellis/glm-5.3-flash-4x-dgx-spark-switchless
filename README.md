@@ -23,11 +23,13 @@ Sparkring/SIRCL custom runtime or transport. The collectives form on **patched
 NCCL 2.30.7** — a *skip-tree-connect* change `LD_PRELOAD`-ed into every
 container, because stock NCCL's tree-connect step wedges on a switch-free
 point-to-point fabric — plus a pinned NCCL runtime profile worked out for this
-topology. The small NCCL source patch came from FujitsuPolycom/sparkring under
-Apache-2.0; the custom transport remained absent during validation. The
-reproducible build and profile are in [`docs/nccl-build.md`](docs/nccl-build.md)
-and [`docs/recipe.md`](docs/recipe.md); provenance and original work are set out
-in [`CREDITS.md`](CREDITS.md).
+topology. The historical v0.1.0 binary remains pinned by this recipe; future
+builds, loading checks, fabric templates, and releases are owned by
+[`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
+The custom SparkRing transport remained absent during validation. The runtime
+profile is in [`docs/recipe.md`](docs/recipe.md), the NCCL migration boundary is
+in [`docs/nccl-build.md`](docs/nccl-build.md), and provenance and original work
+are set out in [`CREDITS.md`](CREDITS.md).
 
 Built and run in production by **Alex Ellis** / **OpenFaaS Ltd** —
 [github.com/alexellis](https://github.com/alexellis) ·
@@ -336,11 +338,12 @@ deployment.
 ## Quickstart
 
 Assumes the weights, drafter, patched NCCL, and image are staged on every node.
-Download the verified NCCL release asset or build the identical library from
-pinned source—without a GPU—using `scripts/build-nccl.sh`. The exact commands,
-patch provenance, licences, and checks are in
-[`docs/nccl-build.md`](docs/nccl-build.md). The live RoCE gate remains
-mandatory whichever installation path you use.
+This recipe retains the historical v0.1.0 download contract. New source builds
+and future releases come from
+[`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
+The exact ownership and migration boundary is in
+[`docs/nccl-build.md`](docs/nccl-build.md). The live RoCE gate remains mandatory
+whichever installation path you use.
 
 ```bash
 # 0. Edit the variables at the top of each script for your site.

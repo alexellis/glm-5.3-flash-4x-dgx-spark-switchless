@@ -1,31 +1,26 @@
-# Build the patched NCCL library
+# Switchless NCCL dependency
 
-The switchless TP4 ring requires one source change that stock NCCL 2.30.7 does
-not contain: when `NCCL_SKIP_TREE_CONNECT=1`, skip Tree and PAT transport setup.
-Those algorithms try to establish connections between ranks that are not
-directly cabled in the four-node cycle. Ring transport remains enabled.
+This model repository no longer owns the NCCL build or publish workflow.
+Future patch source, ARM64 builds, release assets, loader verification, Netplan
+templates, and provenance live in
+[`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
 
-Earlier revisions of this recipe said “build or obtain” the library without
-giving the patch or a build path. That was incomplete.
+## Historical v0.1.0 pin
 
-## Provenance
+The controlled RigMark receipt in this repository used the existing v0.1.0
+release asset:
 
-The two-hunk patch is from FujitsuPolycom/sparkring and is Apache-2.0 licensed:
+- archive: `nccl-2.30.7-skip-tree-pat-sm121-linux-arm64.tar.gz`;
+- library SHA-256:
+  `8733af78fa1bff0bf495bc0ba55928580327fd9696563dba265c66b222faf620`;
+- patch mode: `NCCL_SKIP_TREE_CONNECT=1`; and
+- content: legacy skip-Tree/PAT patch only.
 
-- NCCL tag: `v2.30.7-1`;
-- NCCL commit: `73cf112295c33aee2b895f329f592f2a9b4b0f97`;
-- patch repository commit: `b70e127e8bda797e38afd9a1cefe1eb3ca790d2f`;
-- patch SHA256:
-  `097656d07a5774919f0d51558b51ec05de8168c0097ed6cb7764c33230ba6eb2`;
-  and
-- target: CUDA 13.0, `sm_121`, ARM64.
+That immutable release remains attached to this repository so its historical
+receipts stay reproducible. It is not the same binary as the later live
+two-patch build, which also contains the all-listener-GIDs change.
 
-This recipe uses the NCCL patch only. It does not load Sparkring/SIRCL or its
-custom transport at runtime.
-
-## Download the verified ARM64 release
-
-The quickest path is the source-built release asset. Run this on each Spark:
+To reproduce that exact historical dependency on each Spark:
 
 ```bash
 NCCL_RELEASE=v0.1.0
@@ -36,79 +31,27 @@ curl -fLO \
 curl -fLO \
   "https://github.com/alexellis/glm-5.3-flash-4x-dgx-spark-switchless/releases/download/${NCCL_RELEASE}/${NCCL_ARCHIVE}.sha256"
 sha256sum -c "${NCCL_ARCHIVE}.sha256"
-tar -xzf "${NCCL_ARCHIVE}"
-
+tar -xzf "$NCCL_ARCHIVE"
 install -d "$HOME/nccl-patched"
 cp -a "${NCCL_ARCHIVE%.tar.gz}"/. "$HOME/nccl-patched/"
 (cd "$HOME/nccl-patched" && sha256sum --check --ignore-missing SHA256SUMS)
 ```
 
-Keep the downloaded archive, checksum, and extracted provenance beside your
-deployment record. Copying the complete directory deliberately retains the
-embedded checksums which `rank-launcher.sh` verifies before every start. The
-archive is a convenience, not a substitute for the runtime ring gate below.
+## Future standalone build
 
-## Reproducible ARM64 build
-
-Run from an ARM64 Linux host with ordinary Docker. The host does not need an
-NVIDIA GPU, NVIDIA driver, CUDA installation, or NVIDIA Container Toolkit:
-
-```bash
-./scripts/build-nccl.sh "$HOME/nccl-patched"
-```
-
-The script:
-
-1. fetches the pinned NVIDIA NCCL source;
-2. downloads and verifies the pinned source patch;
-3. compiles only `sm_121` inside a pinned NVIDIA CUDA 13.0.2 ARM64 development
-   image;
-4. checks the output architecture, NCCL/CUDA version, and both patch markers;
-   and
-5. prints the resulting library SHA256.
-
-The CUDA build image is a 3.66 GiB compressed one-time pull. It is compiler
-userspace, not a driver stack. Nothing in the build invokes a GPU.
-
-The repository's ordinary push and pull-request workflow runs the same builder
-on an Actuated ARM64 runner. It is path-filtered, so unrelated changes such as
-editing the top-level README do not start an NCCL job. Changes to build,
-verification, packaging, provenance, or workflow inputs do start one.
-
-The compiled library is retained with `actions/cache`. Its exact-only cache key
-includes the runner OS and architecture plus the SHA256 of `build-nccl.sh`,
-which contains the pinned NCCL commit, patch commit and checksum, CUDA image
-digest, target architecture, and compiler flags. There is deliberately no
-prefix fallback to an older build. Every restored library is rechecked for its
-architecture, version, patch markers, and symlinks before packaging.
-
-A separate tag-triggered publish workflow restores the same exact build when
-available, or builds it on a cache miss, and uploads a versioned archive plus
-its SHA256 to the existing GitHub release using `alexellis/upload-assets`.
-
-The release archive includes the versioned library and symlinks, this
-provenance document, the exact applied patch, its SHA256, and the NVIDIA NCCL,
-Sparkring, and recipe licences. A published binary has passed the source,
-architecture, version, and embedded-marker checks; it has not passed a live
-RoCE collective merely by being built in CI.
-
-Copy the resulting `nccl-patched/` directory to the same path on all four
-Sparks. The launcher bind-mounts it read-only and selects it through
-`LD_PRELOAD` and `VLLM_NCCL_SO_PATH`.
-
-## Runtime verification
-
-The build proves source and binary shape, not fabric behaviour. Before serving,
-run the repository's ring gate on the four real Sparks. With
-`NCCL_DEBUG=INFO`, initialization should show:
+The standalone repository uses SparkRing's independently implemented combined
+patch. It adds the listener-GID behaviour and changes the opt-in variable to:
 
 ```text
-SWITCHLESS: skipping ncclTransportTreeConnect
-SWITCHLESS: skipping ncclTransportPatConnect
+NCCL_SWITCHLESS_RING_ONLY=1
 ```
 
-It must also show Ring selected and complete the long-context and tool-call
-gates. An ARM CI runner without a GPU cannot validate RoCE collectives.
+No standalone release has been cut yet. Do not replace the library pinned by a
+working deployment until the new binary has passed the complete four-Spark
+collective and model gate. During migration, launchers should export both the
+legacy and new variables so they can start either library deliberately.
 
-Sources: [NVIDIA NCCL](https://github.com/NVIDIA/nccl),
-[pinned switchless patch](https://github.com/FujitsuPolycom/sparkring/blob/b70e127e8bda797e38afd9a1cefe1eb3ca790d2f/spark_transport/nccl/nccl-2.30.7-skip-tree-pat.patch).
+See the standalone repository's
+[variant matrix](https://github.com/alexellis/switchless-nccl/blob/master/docs/variants.md),
+[runtime loading contract](https://github.com/alexellis/switchless-nccl/blob/master/docs/runtime.md),
+and [fabric runbook](https://github.com/alexellis/switchless-nccl/blob/master/docs/fabric.md).

@@ -51,35 +51,21 @@ stock library. The stock tree-connect step assumes a switched fabric can form
 the NCCL tree; on a bare point-to-point ring that step wedges, so it is skipped
 and the ring algorithm is used directly.
 
-Build the ARM64 library on any ARM64 Linux machine with Docker; no NVIDIA GPU,
-driver, host CUDA installation, or NVIDIA Container Toolkit is required:
+This recipe's controlled receipt pins its historical v0.1.0 release asset.
+Download and checksum details are in [`nccl-build.md`](nccl-build.md).
 
-```bash
-./scripts/build-nccl.sh "$HOME/nccl-patched"
-```
-
-The source inputs are pinned and inspectable:
-
-- NVIDIA NCCL `v2.30.7-1`, commit
-  `73cf112295c33aee2b895f329f592f2a9b4b0f97`;
-- FujitsuPolycom/sparkring's Apache-2.0
-  [skip-tree/PAT patch](https://github.com/FujitsuPolycom/sparkring/blob/b70e127e8bda797e38afd9a1cefe1eb3ca790d2f/spark_transport/nccl/nccl-2.30.7-skip-tree-pat.patch),
-  commit `b70e127e8bda797e38afd9a1cefe1eb3ca790d2f`, SHA256
-  `097656d07a5774919f0d51558b51ec05de8168c0097ed6cb7764c33230ba6eb2`;
-- NVIDIA CUDA 13.0.2 ARM64 development image, pinned by digest; and
-- CUDA architecture `sm_121`.
-
-The build script fetches those sources, verifies the patch hash, applies it, runs
-NCCL's `make src.build`, and checks the resulting ARM64 library and embedded
-patch markers. It creates `$HOME/nccl-patched/libnccl.so.2.30.7` plus the
-`libnccl.so.2` and `libnccl.so` symlinks. The release asset contains the output
-of that same clean CI build. Download and checksum instructions, the complete
-command-level explanation, and the CI path are in
-[`nccl-build.md`](nccl-build.md).
+All future source builds and releases are owned by
+[`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
+That repository pins the NVIDIA source and CUDA image, carries the clean
+combined patch and full provenance, verifies the loaded library, and publishes
+the generic fabric template. It does not contain this model's weights or vLLM
+arguments.
 
 - Place the resulting directory at `$HOME/nccl-patched/` on every node.
 - The launcher mounts it read-only at `/opt/patched-nccl` and sets both
-  `LD_PRELOAD` and `VLLM_NCCL_SO_PATH` to it, plus `NCCL_SKIP_TREE_CONNECT=1`.
+  `LD_PRELOAD` and `VLLM_NCCL_SO_PATH` to it. During migration it exports both
+  the legacy `NCCL_SKIP_TREE_CONNECT=1` and clean
+  `NCCL_SWITCHLESS_RING_ONLY=1` selectors.
 
 This is the single most important piece of the switchless integration. Without
 it, the collectives will not form reliably on a switch-free fabric.
@@ -190,9 +176,11 @@ Notes on the choices:
 LD_PRELOAD=/opt/patched-nccl/libnccl.so.2
 VLLM_NCCL_SO_PATH=/opt/patched-nccl/libnccl.so.2            # patched NCCL 2.30.7
 NCCL_SKIP_TREE_CONNECT=1
+NCCL_SWITCHLESS_RING_ONLY=1
 NCCL_SOCKET_IFNAME=<mgmt-if>  GLOO_SOCKET_IFNAME=<mgmt-if>  VLLM_HOST_IP=<this node mgmt ip>
 NCCL_NET=IB  NCCL_IB_DISABLE=0  NCCL_IB_HCA=<pair-hca>,<cross-hca>    # both rails
 NCCL_IB_GID_INDEX=3  NCCL_IB_SUBNET_PREFIX_LEN=24  NCCL_IB_SUBNET_AWARE_ROUTING=1
+NCCL_IB_MERGE_NICS=0
 NCCL_ALGO=Ring  NCCL_PROTO=LL,LL128,Simple  NCCL_P2P_LEVEL=SYS
 NCCL_MIN_NCHANNELS=4  NCCL_MAX_NCHANNELS=4  NCCL_CROSS_NIC=1  NCCL_CUMEM_ENABLE=0
 NCCL_IGNORE_CPU_AFFINITY=1

@@ -25,9 +25,12 @@ end-to-end recipe around it:
   **dual RoCE rails per node** (a pair edge and a cross edge).
 - The integration of a **patched NCCL 2.30.7** (skip-tree-connect,
   `LD_PRELOAD`-ed) with the pinned runtime profile for this topology. The
-  two-hunk NCCL source patch comes from **FujitsuPolycom/sparkring** under
-  Apache-2.0 and is now pinned and credited in
-  [`docs/nccl-build.md`](docs/nccl-build.md). Sparkring/SIRCL's custom
+  historical compatibility patch was published by **FujitsuPolycom/sparkring**
+  under Apache-2.0. SparkRing credits **Joseph Rose** for the earlier
+  skip-Tree/skip-PAT approach; his source repository declares no licence and
+  is not redistributed here. Future clean builds are owned by
+  [`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
+  Sparkring/SIRCL's custom
   transport is not part of this stack; the ring was validated without it.
 - The end-to-end **TP4 + DFlash2 serve recipe**: launch order, fabric-addressing
   template, correctness gate, KV and quant choices, and the operational gotchas
@@ -51,10 +54,11 @@ that are not ours. Credit where it is due:
   informed by the wider DGX Spark community's shared work on serving large MoE
   models on GB10, including **tonyd2wild**, **Mia**, and **0xdfi**. The single-node
   and 2-node DFlash2 recipes this scales up from owe a lot to that work.
-- **NCCL skip-tree/PAT source patch** — the pinned Apache-2.0 patch from
-  **FujitsuPolycom/sparkring**. This repository builds it against NVIDIA NCCL
-  2.30.7. Any release binary is rebuilt from the pinned source in public CI and
-  packaged with the exact patch, provenance, licences, and checksums.
+- **NCCL switchless approach** — the earlier skip-Tree/PAT approach was
+  published by **Joseph Rose**. SparkRing independently implemented the clean
+  combined patch now carried by
+  [`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl),
+  which records the NVIDIA, Joseph Rose, and SparkRing lineage in full.
 
 ## Licence
 
