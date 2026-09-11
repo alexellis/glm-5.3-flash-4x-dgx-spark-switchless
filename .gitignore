@@ -1,2 +1,5 @@
 # Local share artefact (served over a tunnel while reviewing) — not part of the recipe.
 index.html
+
+# Site inventory and service names. Copy from cluster.env.example.
+scripts/cluster.env

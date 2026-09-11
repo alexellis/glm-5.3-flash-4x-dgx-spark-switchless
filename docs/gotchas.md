@@ -21,6 +21,10 @@ re-read it the first time something behaves oddly.
   `ibv_modify_qp`. Both scripts now check all eight GIDs before launch. If a GID
   is empty, stop every GPU appliance on that node, reboot it, re-apply the ring,
   and rerun the pre-flight. Do not keep retrying NCCL against the same state.
+- **Do not merge the HCAs.** Pin `NCCL_IB_MERGE_NICS=0`. NCCL 2.30 defaults to
+  merging them; on a switchless ring that can pair two GIDs without a physical
+  cable between them. Communicator setup may succeed and the first all-reduce
+  then hangs. The patched listener-GID logic is specifically for unmerged NICs.
 - **A jumbo ping is not proof.** `ping -M do -s 8972 <peer>` can pass while the
   RDMA relay is broken. Only a completed NCCL collective (the model serving and
   passing the gate) proves the ring works.

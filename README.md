@@ -376,6 +376,11 @@ eight RoCE-v2 GIDs, eight MTUs, and all four jumbo ring edges. The rank launcher
 checks its two local rails, the published NCCL checksums, and competing GPU
 processes. A stale TP2→TP4 network state now fails before model loading begins.
 
+For repeated operations, use the bounded cluster scripts in
+[`docs/operator-runbook.md`](docs/operator-runbook.md). They encode service
+handoff, post-Docker fabric application, rank order, active progress deadlines,
+and the complete correctness gate.
+
 ---
 
 ## Repository layout
@@ -390,11 +395,15 @@ processes. A stale TP2→TP4 network state now fails before model loading begins
 │   ├── fabric.md             # the ring fabric addressing template + MTU
 │   ├── switches.md           # switched alternatives (100/400 GbE) + supply chain
 │   ├── long-context.md       # 512K / 1M: the KV arithmetic + how to gate it
-│   └── gotchas.md            # failure modes and the fixes
+│   ├── operator-runbook.md    # bounded repeated start/stop operations
+│   └── gotchas.md             # failure modes and the fixes
 └── scripts/
     ├── fabric-setup.sh       # apply ring addressing + MTU (edit vars at top)
     ├── rank-launcher.sh      # launch one rank in a container (edit vars at top)
-    └── gate.sh               # correctness gate (needle + tool-call + decode)
+    ├── cluster-up.sh         # ordered, observable four-rank transition
+    ├── cluster-status.sh     # read-only rank and API status
+    ├── cluster-down.sh       # stop ranks and optionally restore defaults
+    └── gate.sh               # correctness gate (needle + tool-call + vision + decode)
 ```
 
 Start with [`docs/recipe.md`](docs/recipe.md).

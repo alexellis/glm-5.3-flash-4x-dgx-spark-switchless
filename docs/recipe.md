@@ -179,8 +179,8 @@ NCCL_SKIP_TREE_CONNECT=1
 NCCL_SWITCHLESS_RING_ONLY=1
 NCCL_SOCKET_IFNAME=<mgmt-if>  GLOO_SOCKET_IFNAME=<mgmt-if>  VLLM_HOST_IP=<this node mgmt ip>
 NCCL_NET=IB  NCCL_IB_DISABLE=0  NCCL_IB_HCA=<pair-hca>,<cross-hca>    # both rails
-NCCL_IB_GID_INDEX=3  NCCL_IB_SUBNET_PREFIX_LEN=24  NCCL_IB_SUBNET_AWARE_ROUTING=1
 NCCL_IB_MERGE_NICS=0
+NCCL_IB_GID_INDEX=3  NCCL_IB_SUBNET_PREFIX_LEN=24  NCCL_IB_SUBNET_AWARE_ROUTING=1
 NCCL_ALGO=Ring  NCCL_PROTO=LL,LL128,Simple  NCCL_P2P_LEVEL=SYS
 NCCL_MIN_NCHANNELS=4  NCCL_MAX_NCHANNELS=4  NCCL_CROSS_NIC=1  NCCL_CUMEM_ENABLE=0
 NCCL_IGNORE_CPU_AFFINITY=1
@@ -189,9 +189,11 @@ TORCH_CUDA_ARCH_LIST=12.1a  FLASHINFER_CUDA_ARCH_LIST=12.1a
 HF_HUB_OFFLINE=1  TRANSFORMERS_OFFLINE=1
 ```
 
-`NCCL_ALGO=Ring` and the fixed channel count reflect the switchless ring; the
-subnet-aware routing plus `NCCL_IB_SUBNET_PREFIX_LEN=24` let NCCL pick the right
-rail per peer subnet.
+`NCCL_ALGO=Ring` and the fixed channel count reflect the switchless ring. Keep
+`NCCL_IB_MERGE_NICS=0`: NCCL otherwise merges both HCAs into one virtual device
+and can pair GIDs that are not joined by a physical cable. The patched listener
+advertises both GIDs so subnet-aware routing can select the correct unmerged
+rail for each peer.
 
 ### Container flags
 
