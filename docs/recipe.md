@@ -20,7 +20,7 @@ launcher references them):
 |---|---|---|---|
 | `$HOME/glm53-flash-nvfp4-redhat/` | GLM-5.3-Flash NVFP4 checkpoint (`config.json` + ~120 shards, ~182 GiB) | `RedHatAI/GLM-5.3-Flash-NVFP4` at `36c184c6…` | ✅ weights |
 | `$HOME/glm53-dflash2-draft/model.safetensors` | DFlash2 speculative drafter | `incoai/GLM-5.3-Flash-DFlash2` | ✅ drafter |
-| `$HOME/nccl-patched/libnccl.so.2` | Patched **NCCL 2.30.7** (skip-tree-connect; works with glibc 2.39) | build from pinned source — see §2 | ✅ patch |
+| `$HOME/nccl-switchless-v0.0.1/libnccl.so.2` | Canonical **switchless-nccl v0.0.1**, SHA-256 `78cb8387…` | published release — see §2 | ✅ patch |
 | `$HOME/glm53-tp4-cache/` | JIT / torch.compile / tilelang cache (created on first run) | — | — |
 | `templates/chat_template.jinja` | Corrected official GLM template, mounted read-only by the launcher | Z.ai revision `690b7052…`, SHA-256 `0c4099f3…` | ✅ template |
 | image `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | vLLM + GLM-5.3 + DFlash2, built for `sm_121` (public) | `docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` | ✅ image |
@@ -51,17 +51,21 @@ stock library. The stock tree-connect step assumes a switched fabric can form
 the NCCL tree; on a bare point-to-point ring that step wedges, so it is skipped
 and the ring algorithm is used directly.
 
-This recipe's controlled receipt pins its historical v0.1.0 release asset.
-Download and checksum details are in [`nccl-build.md`](nccl-build.md).
+Install the exact qualified release on each node:
 
-All future source builds and releases are owned by
+```bash
+./scripts/install-switchless-nccl.sh
+```
+
+The script pins and checks both the release archive and library SHA-256. Source,
+builds, and releases are owned by
 [`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
-That repository pins the NVIDIA source and CUDA image, carries the clean
-combined patch and full provenance, verifies the loaded library, and publishes
-the generic fabric template. It does not contain this model's weights or vLLM
-arguments.
+That repository pins the NVIDIA source and CUDA image, carries the two proven
+patches plus the OpenFaaS Ltd hardening patch and full provenance, verifies the
+loaded library, and publishes the generic fabric template. It does not contain
+this model's weights or vLLM arguments.
 
-- Place the resulting directory at `$HOME/nccl-patched/` on every node.
+- Place the release at `$HOME/nccl-switchless-v0.0.1/` on every node.
 - The launcher mounts it read-only at `/opt/patched-nccl` and sets both
   `LD_PRELOAD` and `VLLM_NCCL_SO_PATH` to it. During migration it exports both
   the legacy `NCCL_SKIP_TREE_CONNECT=1` and clean

@@ -28,10 +28,12 @@ end-to-end recipe around it:
   historical compatibility patch was published by **FujitsuPolycom/sparkring**
   under Apache-2.0. SparkRing credits **Joseph Rose** for the earlier
   skip-Tree/skip-PAT approach; his source repository declares no licence and
-  is not redistributed here. Future clean builds are owned by
+  is not redistributed here. The original hardening, tooling, documentation,
+  and packaging in the canonical build are owned by Alex Ellis, OpenFaaS Ltd,
+  and published from
   [`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
-  Sparkring/SIRCL's custom
-  transport is not part of this stack; the ring was validated without it.
+  SparkRing/SIRCL's custom transport is not part of this stack; the ring was
+  validated without it.
 - The end-to-end **TP4 + DFlash2 serve recipe**: launch order, fabric-addressing
   template, correctness gate, KV and quant choices, and the operational gotchas
   that make it repeatable — validated against real serving traffic, not just a
@@ -55,8 +57,8 @@ that are not ours. Credit where it is due:
   models on GB10, including **tonyd2wild**, **Mia**, and **0xdfi**. The single-node
   and 2-node DFlash2 recipes this scales up from owe a lot to that work.
 - **NCCL switchless approach** — the earlier skip-Tree/PAT approach was
-  published by **Joseph Rose**. SparkRing independently implemented the clean
-  combined patch now carried by
+  published by **Joseph Rose**. The canonical build combines SparkRing's
+  independently published Apache-2.0 patches with OpenFaaS Ltd's hardening in
   [`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl),
   which records the NVIDIA, Joseph Rose, and SparkRing lineage in full.
 

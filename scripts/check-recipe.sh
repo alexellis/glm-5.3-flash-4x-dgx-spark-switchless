@@ -26,5 +26,9 @@ fi
 
 grep -q 'MASTER="10.0.0.1"' scripts/rank-launcher.sh
 grep -q 'SSH_USER="you"' scripts/fabric-setup.sh
+grep -q 'NCCL_RELEASE=v0.0.1' scripts/install-switchless-nccl.sh
+grep -q \
+  'NCCL_LIBRARY_SHA256=78cb83871792ec57d763d142e4cae26fc754ae284bcc81dcb2a7d50e17d4fa57' \
+  scripts/install-switchless-nccl.sh
 
 echo 'Recipe syntax, pins, receipts, placeholders, and privacy checks passed.'

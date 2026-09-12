@@ -18,17 +18,17 @@ also served **GLM-5.2** (in more than one quant format: EXL3, and QuantTrio) and
 serve arguments (parsers, drafter, MoE backend, and KV sizing); everything else in
 the recipe carries over.
 
-**And no — this is not Sparkring under a different name.** It does not load the
-Sparkring/SIRCL custom runtime or transport. The collectives form on **patched
-NCCL 2.30.7** — a *skip-tree-connect* change `LD_PRELOAD`-ed into every
-container, because stock NCCL's tree-connect step wedges on a switch-free
-point-to-point fabric — plus a pinned NCCL runtime profile worked out for this
-topology. The historical v0.1.0 binary remains pinned by this recipe; future
-builds, loading checks, fabric templates, and releases are owned by
+**And no — this is not SparkRing under a different name.** It does not load the
+SparkRing/SIRCL custom runtime or transport. The collectives use the canonical
+`switchless-nccl` v0.0.1 release: NVIDIA NCCL 2.30.7, the two proven
+Apache-2.0 switchless patches, and the separately marked OpenFaaS Ltd hardening
+patch. It is `LD_PRELOAD`-ed into every container with a pinned binary hash.
+Source, builds, release assets, loading checks, fabric templates, and complete
+provenance are owned by
 [`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
 The custom SparkRing transport remained absent during validation. The runtime
-profile is in [`docs/recipe.md`](docs/recipe.md), the NCCL migration boundary is
-in [`docs/nccl-build.md`](docs/nccl-build.md), and provenance and original work
+profile is in [`docs/recipe.md`](docs/recipe.md), the NCCL dependency is in
+[`docs/nccl-build.md`](docs/nccl-build.md), and provenance and original work
 are set out in [`CREDITS.md`](CREDITS.md).
 
 Built and run in production by **Alex Ellis** / **OpenFaaS Ltd** —
@@ -135,6 +135,29 @@ and [shareable card](data/rigmark/glm53-redhat-nvfp4-tp4-static-k7-low-20260905T
 record every output, range, immutable model and drafter revision, serving image
 ID, NCCL checksum, recipe revision, and RigMark Git revision. Endpoint addresses
 and credentials are absent.
+
+### Published switchless-nccl v0.0.1 regression — 12 September 2026
+
+The canonical public release was installed from GitHub on all four nodes and
+verified as the active process mapping before rerunning the same pinned
+RigMark protocol against today's local hardened baseline.
+
+| Metric | Local hardened | Published v0.0.1 | Change |
+|---|---:|---:|---:|
+| Code decode | 71.0 tok/s | **71.3 tok/s** | +0.4% |
+| Prose decode | 30.6 tok/s | **31.2 tok/s** | +2.0% |
+| Structured ceiling | 109.3 tok/s | **109.2 tok/s** | -0.1% |
+| 64K cold prefill | 1,976 tok/s | **1,965 tok/s** | -0.6% |
+| 64K cached replay | 36,334 tok/s | **36,075 tok/s** | -0.7% |
+| C4 short-code aggregate | 100.0 tok/s | **110.8 tok/s** | +10.8% |
+
+Both arms passed 15/15 output gates. The C4 three-round ranges overlap heavily
+(baseline 70–117, release 68–114 tok/s), so the median swing is scheduler and
+sample variance rather than evidence of a binary effect. The single-stream
+decode and 64K prefill results establish the expected near-zero regression.
+The [release receipt](data/rigmark/glm53-nccl-v0.0.1-tp4-20260912.json) and
+[shareable card](data/rigmark/glm53-nccl-v0.0.1-tp4-20260912.card.txt) contain
+the complete samples and generated outputs.
 
 ### Matched TP2 → TP4 comparison
 
@@ -325,7 +348,7 @@ management LAN.
 | Your 4 node **management IPs** | The **weights**: `RedHatAI/GLM-5.3-Flash-NVFP4` at the pinned revision |
 | Your **RoCE cabling** (which port on which node reaches which neighbour) | The **drafter**: `incoai/GLM-5.3-Flash-DFlash2` |
 | Your **fabric IP scheme** (a template is supplied — use any private range) | The **container image**: `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` (public) |
-| Your **interface names** (defaults match the DGX Spark; adjust for your NICs) | The **patched NCCL 2.30.7** (skip-tree-connect, `LD_PRELOAD`) |
+| Your **interface names** (defaults match the DGX Spark; adjust for your NICs) | **switchless-nccl v0.0.1**, library SHA-256 `78cb8387…` |
 | Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **bf16** (`--kv-cache-dtype auto`), KV pool 12 GiB, DFlash `num_speculative_tokens: 7`, corrected official chat template, parsers, `max-model-len 262144`) |
 | A HuggingFace token to fetch the weights (kept in your own secret store) | The **launch order** (workers 3→2→1 headless, then head 0) |
 
@@ -337,13 +360,10 @@ deployment.
 
 ## Quickstart
 
-Assumes the weights, drafter, patched NCCL, and image are staged on every node.
-This recipe retains the historical v0.1.0 download contract. New source builds
-and future releases come from
-[`alexellis/switchless-nccl`](https://github.com/alexellis/switchless-nccl).
-The exact ownership and migration boundary is in
-[`docs/nccl-build.md`](docs/nccl-build.md). The live RoCE gate remains mandatory
-whichever installation path you use.
+Assumes the weights, drafter, and image are staged on every node. Install the
+pinned `switchless-nccl` release on all four nodes before launch; exact hashes
+and ownership are in [`docs/nccl-build.md`](docs/nccl-build.md). The live RoCE
+gate remains mandatory.
 
 ```bash
 # 0. Edit the variables at the top of each script for your site.
@@ -351,19 +371,22 @@ whichever installation path you use.
 #    scripts/rank-launcher.sh — master (head) IP, mgmt interface, IB HCA names
 #    scripts/gate.sh          — BASE_URL of the head node
 
-# 1. Apply and verify the ring fabric (every boot, and after docker churn).
+# 1. On every Spark, install the pinned, checksummed NCCL release.
+./scripts/install-switchless-nccl.sh
+
+# 2. Apply and verify the ring fabric (every boot, and after docker churn).
 ./scripts/fabric-setup.sh
 
-# 2. Launch the workers first (headless), then the head (opens the API).
+# 3. Launch the workers first (headless), then the head (opens the API).
 ssh you@NODE3 '~/glm53-tp4-switchless-recipe/scripts/rank-launcher.sh 3'
 ssh you@NODE2 '~/glm53-tp4-switchless-recipe/scripts/rank-launcher.sh 2'
 ssh you@NODE1 '~/glm53-tp4-switchless-recipe/scripts/rank-launcher.sh 1'
 ssh you@NODE0 '~/glm53-tp4-switchless-recipe/scripts/rank-launcher.sh 0'   # head, opens :8000
 
-# 3. Watch the head come up (weight load + compile + warmup ~ a few minutes).
+# 4. Watch the head come up (weight load + compile + warmup ~ a few minutes).
 ssh you@NODE0 'docker logs -f glm53_tp4'
 
-# 4. Gate it before trusting it: needle + tool-call + warm decode.
+# 5. Gate it before trusting it: needle + tool-call + warm decode.
 ./scripts/gate.sh
 ```
 
