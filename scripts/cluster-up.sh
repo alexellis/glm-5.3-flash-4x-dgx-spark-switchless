@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/cluster-lib.sh"
 cluster_load_config
 
 preflight() {
-  local rank actual_name launcher_hash template_hash gpu_procs active_links
+  local rank actual_name launcher_hash template_hash gpu_procs active_links nccl_hash
   for rank in 0 1 2 3; do
     actual_name=$(cluster_remote "$rank" hostname)
     if [ "$actual_name" != "${NODE_NAMES[$rank]}" ]; then
@@ -25,6 +25,17 @@ preflight() {
       "grep -q -- 'NCCL_IB_MERGE_NICS=0' '$REMOTE_LAUNCHER'"; then
       echo "launcher on $actual_name does not disable NCCL HCA merging" >&2
       return 1
+    fi
+    if [ -n "${REMOTE_NCCL_DIR:-}" ]; then
+      nccl_hash=$(cluster_remote "$rank" \
+        "sha256sum '$REMOTE_NCCL_DIR/libnccl.so.2.30.7' | cut -d ' ' -f1")
+      if [ -n "${EXPECTED_NCCL_SHA256:-}" ] && \
+        [ "$nccl_hash" != "$EXPECTED_NCCL_SHA256" ]; then
+        echo "NCCL hash mismatch on $actual_name: $nccl_hash" >&2
+        return 1
+      fi
+    else
+      nccl_hash=launcher-default
     fi
     template_hash=$(cluster_remote "$rank" \
       "sha256sum '$REMOTE_TEMPLATE' | cut -d ' ' -f1")
@@ -44,14 +55,19 @@ preflight() {
       echo "fewer than two active RDMA links on $actual_name" >&2
       return 1
     fi
-    echo "preflight rank=$rank host=$actual_name launcher=$launcher_hash template=OK rdma=$active_links"
+    echo "preflight rank=$rank host=$actual_name launcher=$launcher_hash nccl=$nccl_hash template=OK rdma=$active_links"
   done
 }
 
 launch_rank() {
   local rank=$1
   echo "launching rank $rank on ${NODE_NAMES[$rank]}"
-  cluster_remote "$rank" "$REMOTE_LAUNCHER '$rank'"
+  if [ -n "${REMOTE_NCCL_DIR:-}" ]; then
+    cluster_remote "$rank" \
+      "NCCL_DIR='$REMOTE_NCCL_DIR' EXPECTED_NCCL_SHA256='${EXPECTED_NCCL_SHA256:-}' '$REMOTE_LAUNCHER' '$rank'"
+  else
+    cluster_remote "$rank" "$REMOTE_LAUNCHER '$rank'"
+  fi
 }
 
 wait_for_collective() {

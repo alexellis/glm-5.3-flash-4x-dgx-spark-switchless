@@ -40,7 +40,7 @@ PORT=8000
 # across all nodes.
 MODEL_DIR="$HOME/glm53-flash-nvfp4-redhat" # RedHatAI/GLM-5.3-Flash-NVFP4
 DRAFT_DIR="$HOME/glm53-dflash2-draft"    # incoai/GLM-5.3-Flash-DFlash2
-NCCL_DIR="$HOME/nccl-patched"            # patched NCCL 2.30.7 (libnccl.so.2)
+NCCL_DIR="${NCCL_DIR:-$HOME/nccl-patched}" # patched NCCL 2.30.7 (libnccl.so.2)
 CACHE_DIR="$HOME/glm53-tp4-cache"        # JIT / compile cache (created on first run)
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 CHAT_TEMPLATE="$REPO_ROOT/templates/chat_template.jinja"
