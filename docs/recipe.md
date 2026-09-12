@@ -153,7 +153,9 @@ Notes on the choices:
   cost** (~+1 GiB, ~+2 min one-time warmup). It lifts *concurrent* throughput only
   if you were batched-token-bottlenecked — measure your own baseline first (ours was
   already unthrottled at 4 streams, so we banked the prefill gain, not a concurrency
-  jump). Keep clear of the 24 GiB-KV + 8192 combo — that's the OOM-hard-hang case.
+  jump). The 24 GiB-KV + 8192 "OOM hard-hang" once recorded here was later
+  root-caused as page-cache starvation and boots clean with the boot-time
+  flusher — see [`long-context.md`](long-context.md).
 - **`--kv-cache-dtype auto` (bf16 KV) + `--kv-cache-memory 12 GiB`** — use an
   *unquantised* (bf16) KV cache. FP8 KV (`fp8_e4m3`) is a blunt per-tensor quant
   whose error accumulates with context depth; DeepSeek-MLA models avoid that with
@@ -162,17 +164,23 @@ Notes on the choices:
   bf16. Because MLA keeps the KV small, bf16 still yields a large pool
   (**786,432 tokens, 3.0× the 262K window** — the rank-0 log prints it at
   start-up) and costs nothing on decode.
-  Validated: mid-context needle retrieval passes at **30K / 119K / 229K** tokens.
-  The pool is capped at 12 GiB on purpose — chasing it higher risks an OOM
-  **hard-hang** on a node (not a clean error). See [`gotchas.md`](gotchas.md).
-  Wondering about a 512K or 1M window instead? The arithmetic and the gating
-  steps are worked through in [`long-context.md`](long-context.md).
+  Validated: mid-context needle retrieval passes at **30K / 119K / 229K** tokens
+  (community run: out to **828K**). 12 GiB stays the default; pools above ~16 GiB
+  need an unconditional boot-time cache flusher and are validated to 36 GiB
+  (48 GiB is OOM-killed by the kernel). The measured ladder, the 1M
+  prerequisites, and the arithmetic for a 512K or 1M window are in
+  [`long-context.md`](long-context.md).
 - **DFlash speculative config, `num_speculative_tokens: 7`** — the DFlash2 drafter
-  mounted at `/draft`; 7 is the tuned depth for this pairing.
+  mounted at `/draft`; 7 is the tuned depth for code/structured output.
+  Prose/analysis-heavy traffic measured **k=3** substantially faster (prose +18%,
+  analysis +8%, code −11% vs k=7). See
+  [`long-context.md`](long-context.md) §"Speculative length: 3 or 7?".
 - **`--tool-call-parser glm47 --reasoning-parser glm45`** — GLM-5.3 emits
   glm47-style tool calls and glm45-style reasoning. Both parsers are required for
   correct tool-calling and thinking behaviour.
-- **`--max-model-len 262144`** — the served context window.
+- **`--max-model-len 262144`** — the served context window. 512K is one flag;
+  1M is validated with a 36 GiB pool plus two prerequisites — see
+  [`long-context.md`](long-context.md).
 
 ### The fixed NCCL / runtime environment (switchless)
 

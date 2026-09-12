@@ -62,15 +62,31 @@ re-read it the first time something behaves oddly.
   the local HCA/GID and remote GID. First re-check that no competing model
   server has returned, then check the named path and its forwarding neighbour;
   jumbo ICMP alone does not validate the RDMA QP.
+- **After many boot cycles (or an OOM kill), reboot the nodes.** With config and
+  fabric unchanged, worker startup can fail NCCL init — `NCCL error: unhandled
+  system error`, or `remote process exited or there was a network error` on the
+  peers — typically after ~5+ clean boots or after a process was OOM-killed.
+  Reboot all four nodes, re-apply the fabric, and relaunch; the same config then
+  comes up clean.
 
 ---
 
 ## Memory / KV
 
-- **KV pool capped at 12 GiB (`--kv-cache-memory 12884901888`).** This is
-  deliberate. Chasing it higher risks an **OOM hard-hang** on a node — not a clean
-  out-of-memory error, but a wedged node that usually needs a power-cycle. Leave
-  it at 12 GiB unless you have a specific, tested reason.
+- **12 GiB is the default; pools above ~16 GiB need the boot-time flusher.**
+  The 24 GiB + 8192 hard-hang once recorded here was page-cache starvation for
+  the KV slab ("phantom backing"), not a hardware ceiling. With an unconditional
+  `drop_caches` loop on every node for the whole boot window (root-cause and
+  script credited to **tonyd2wild**), pools to **36 GiB** are validated; 48 GiB
+  allocates and completes startup, then the kernel OOM-killer takes the head
+  worker during warmup. Stop the flusher once the gate passes. Measured ladder
+  and receipts: [`long-context.md`](long-context.md).
+- **1M needs the SM121 `persistent_topk` guard.** `--max-model-len 1048576`
+  otherwise wedges warmup with `launch_persistent_topk ... would oversubscribe`.
+  The sparse-indexer top-k must route small-SM parts (GB10: 48 SMs / ~99 KB
+  smem) to `top_k_per_row_decode`; one-condition guard, also credited to
+  **tonyd2wild**, with the snippet and bind-mount in
+  [`long-context.md`](long-context.md).
 
 ---
 
