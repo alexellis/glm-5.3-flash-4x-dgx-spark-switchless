@@ -38,7 +38,7 @@ PORT=8000
 
 # Local staging paths (see docs/recipe.md §1). $HOME-relative; keep consistent
 # across all nodes.
-MODEL_DIR="$HOME/glm53-flash-nvfp4-redhat" # RedHatAI/GLM-5.3-Flash-NVFP4
+MODEL_DIR="$HOME/glm53-flash-nvfp4" # LibertAIDAI/GLM-5.3-Flash-NVFP4
 DRAFT_DIR="$HOME/glm53-dflash2-draft"    # incoai/GLM-5.3-Flash-DFlash2
 NCCL_DIR="${NCCL_DIR:-$HOME/nccl-switchless-v0.0.1}" # canonical release
 CACHE_DIR="$HOME/glm53-tp4-cache"        # JIT / compile cache (created on first run)
@@ -164,10 +164,10 @@ docker run -d --name "$NAME" --restart no \
     --served-model-name glm-5.3-flash --trust-remote-code \
     --tensor-parallel-size 4 --nnodes 4 --node-rank "$R" \
     --master-addr "$MASTER" --master-port "$MPORT" \
-    --gpu-memory-utilization 0.82 --max-model-len 262144 \
-    --max-num-seqs 6 --max-num-batched-tokens 8192 --block-size 2304 --moe-backend marlin \
+    --gpu-memory-utilization 0.85 --max-model-len 262144 \
+    --max-num-seqs 6 --block-size 2304 --moe-backend marlin \
     --limit-mm-per-prompt '{"image":16}' \
-    --kv-cache-dtype auto --kv-cache-memory 12884901888 \
+    --kv-cache-dtype fp8_e4m3 --kv-cache-memory 12884901888 \
     --speculative-config '{"method":"dflash","model":"/draft","num_speculative_tokens":7}' \
     --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45 \
     --chat-template /opt/glm53/chat_template.jinja \

@@ -103,7 +103,7 @@ Captured across all four GB10 nodes during the sweep:
 
 | Per node | Value |
 |---|---|
-| Unified memory | 128 GiB; ~113 GiB free pre-KV; **12 GiB KV pool = 786,432 tokens** (3.0× the 262K window) |
+| Unified memory | 128 GiB; ~113 GiB free pre-KV; **12 GiB/rank FP8 E4M3 KV = 1,576,246 logical tokens** (6.01× the 262K window) |
 | Model on disk | 184 GiB NVFP4 checkpoint (≈46 GiB/node at TP4) + 46 GiB draft |
 | GPU temp under load | **54–56 °C avg, 74 °C peak** (idle ~47 °C) |
 | GPU power | **~30 W avg, ~65 W peak** (idle ~11 W) — the "~500 W for the pair" is whole-system |

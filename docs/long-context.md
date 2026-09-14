@@ -1,87 +1,112 @@
 # 512K and 1M context — what it would take
 
-The most common question about this recipe: *why does it ship
-`--max-model-len 262144` when the model is rated to 1M?* Short answer: 262K is
-the **validated, multi-user envelope**, not a ceiling. GLM-5.3-Flash is natively
-trained to **1,048,576 positions** (`max_position_embeddings` in `config.json`),
-and it is a NoPE model — there is no RoPE scaling or extrapolation trick
-involved in going deeper. Both 512K and 1M are reachable with flag changes.
+The shipped endpoint serves 262,144 tokens even though GLM-5.3-Flash is
+natively rated to 1,048,576 positions (`max_position_embeddings` in
+`config.json`). It is a NoPE model, so a deeper window does not require a RoPE
+scaling or extrapolation setting. The smaller served window is the qualified,
+multi-user envelope rather than a model limit.
 
-What follows is the exact arithmetic, what it costs you, and how to gate it if
-you go there. If you want 1M — do it; this page is what your agent needs.
+## The measured KV pool
 
-## The KV arithmetic
-
-Measured on the running build (rank-0 log):
+The current FP8 E4M3 deployment prints this on rank 0:
 
 ```
 reserved 12.0 GiB memory for KV Cache
-GPU KV cache size: 786,432 tokens, Maximum concurrency for 262,144 tokens per request: 3.00x
+GPU KV cache size: 1,576,246 tokens, Maximum concurrency for 262,144 tokens per request: 6.01x
 ```
 
-12 GiB ÷ 786,432 tokens = **16 KiB of KV per token, per rank** (bf16 KV — see
-[`recipe.md`](recipe.md) for why FP8 KV is the wrong trade on this model).
-Every projection below is that one measured number, scaled linearly:
+The 12 GiB reservation is **per rank**, but 4 × 12 GiB is not a 48 GiB logical
+pool. Tensor parallelism shards the model while every active sequence consumes
+corresponding KV blocks on every rank. The engine-wide usable capacity is the
+reported **1,576,246 logical tokens**.
 
-| Window | Min pool for one full-depth stream | Suggested `--kv-cache-memory` | Full-depth streams at suggested |
-|---|---|---|---|
-| **262,144** (shipped) | 4 GiB | 12 GiB (`12884901888`) | 3.0 |
-| **524,288** | 8 GiB | **12 GiB — unchanged** | 1.5 |
-| **1,048,576** | 16 GiB (boundary-exact) | 18 GiB (`19327352832`) | 1.125 |
+At this measured point, the effective density is about **7.98 KiB per logical
+token, per rank**. The same pool would provide:
 
-- **512K is one flag.** `--max-model-len 524288`, nothing else. The shipped
-  12 GiB pool already holds 1.5 full-depth streams, and shallow requests share
-  the same pool exactly as before.
-- **1M is two flags.** `--max-model-len 1048576` plus a bigger pool. 16 GiB
-  works out to 1,048,576 tokens *to the token* — a boundary-exact pool leaves
-  no margin for block rounding or the speculative-decode lookahead, so take
-  18 GiB and keep 12.5% headroom.
+| Served window | Full-depth streams in the current pool |
+|---|---:|
+| **262,144** (shipped) | **6.01** |
+| **524,288** | **3.01** |
+| **1,048,576** | **1.50** |
 
-## What it costs
+That means neither 512K nor a single 1M stream needs a larger KV reservation.
+They need a different `--max-model-len`, a fresh graph warm-up, and depth-specific
+correctness testing. `--max-num-seqs 6` is only a scheduling ceiling; it does not
+promise that six maximum-depth requests fit concurrently.
 
-- **Cold TTFT becomes minutes.** Cold prefill measures ~2,000–2,300 tok/s on
-  this deployment, so a full cold window is roughly **4–4.5 minutes at 512K**
-  and **8–9 minutes at 1M**. Prefix-cache reuse still applies — it is the first
-  deep prefill that hurts, and every user should know that number before you
-  advertise the window.
-- **Validation stops at 229K.** Needle retrieval is proven at 30K / 119K /
-  229K; nothing beyond that has been measured here — neither retrieval quality
-  nor decode speed at depth. A pass at 229K says nothing about 500K.
-- **The pool is shared.** One 1M request occupies ~89% of an 18 GiB pool.
-  `--max-num-seqs 6` does not protect concurrent users from a single deep
-  request — they get queued or preempted behind it. The shipped config's 3.0×
-  concurrency at full depth is a feature, and this trades it away.
-- **The hard-hang zone is real.** 12 GiB is the known-safe pool on a 128 GiB
-  GB10. 24 GiB combined with `--max-num-batched-tokens 8192` produced an OOM
-  **hard-hang** — a wedged node, not a clean error (see
-  [`gotchas.md`](gotchas.md)). 16–18 GiB is untested middle ground: raise the
-  pool in one step, watch the whole bring-up, and be ready to power-cycle.
-- **Check your demand first.** Across 476 real agentic requests through this
-  deployment, the deepest prompt was **122K** — under half the shipped window.
-  Ship a bigger window because your traffic needs it, not for the README.
+## Why TP4 does not automatically multiply KV capacity
 
-## If you want it
+TP4 reduces the model-weight footprint on each node and provides the compute and
+communication lane that makes this model fast. It does not concatenate four
+independent KV heaps. Each rank holds its shard of every sequence's cache, so the
+rank with the smallest usable reservation bounds the same logical token pool.
 
-In [`scripts/rank-launcher.sh`](../scripts/rank-launcher.sh), on **all four
-ranks** (the serve arguments must match across the TP group):
+The freed memory is still valuable: it gives graph capture, compilation, prefill,
+the drafter, and transient allocations room to coexist. We deliberately convert
+only 12 GiB/rank of that headroom into KV. The current TP4 pool is therefore a
+safety-policy choice, not evidence that sharding failed to free memory. Raising
+it is possible, but it should be treated as a new appliance qualification rather
+than free capacity.
+
+## What a larger reservation might buy
+
+These are linear projections from the measured 12 GiB point, not qualified
+configurations. Allocator block rounding, graph capture, prefill workspace, and
+other transient use can change the realised capacity and stability.
+
+| KV per rank | Estimated logical tokens | 262K-window equivalents | Status |
+|---:|---:|---:|---|
+| **12 GiB** | **1,576,246** | **6.01×** | Current, measured, and qualified |
+| 16 GiB | ~2,101,661 | ~8.02× | Unverified |
+| 18 GiB | ~2,364,369 | ~9.02× | Unverified |
+| 20 GiB | ~2,627,077 | ~10.02× | Unverified |
+| 24 GiB | ~3,152,492 | ~12.03× | Do not jump here; prior hard-hang territory |
+
+The manual `--kv-cache-memory` setting makes vLLM skip KV memory profiling;
+`--gpu-memory-utilization` does not resize this pool. If demand justifies more
+concurrency, qualify 16 GiB first, then 18 GiB, with all four ranks observed and
+a strict readiness deadline. Do not infer safety from idle free memory: peak
+prefill, compilation, and graph capture are the dangerous phases.
+
+## What deeper windows cost
+
+- **Cold TTFT becomes minutes.** At the qualified cold-prefill result of about
+  1,965 tok/s, 512K is roughly **4.4 minutes**, and 1M is roughly **8.9 minutes**.
+  Prefix-cache reuse still helps subsequent turns.
+- **Current FP8 depth evidence stops at 28,780 tokens.** Exact retrieval passed
+  there, alongside tool calling, native vision, and the RigMark output gates.
+  The earlier bf16 deployment passed needles at 30K, 119K, and 229K, but that
+  does not qualify the present FP8 cache at those depths.
+- **One deep request consumes shared capacity.** A full 1M request would occupy
+  about two-thirds of the current pool. Other requests may queue or be preempted
+  despite `--max-num-seqs 6`.
+- **The hard-hang zone is real.** A previous 24 GiB/rank experiment combined
+  with `--max-num-batched-tokens 8192` wedged a node instead of returning a clean
+  OOM. The current 12 GiB cap deliberately favours an appliance that stays up.
+- **Check actual demand.** In the measured production sample, the deepest of
+  476 agentic requests was 122K, under half the shipped window.
+
+## Qualifying a deeper window
+
+Change `--max-model-len` on all four ranks; leave the proven 12 GiB pool alone
+for the first experiment:
 
 ```bash
-# 512K — one change:
+# 512K
 --max-model-len 524288
 
-# 1M — two changes:
+# 1M
 --max-model-len 1048576
---kv-cache-memory 19327352832        # 18 GiB; 16 GiB is the boundary-exact minimum
 ```
 
-Relaunch in the usual order (workers 3 → 2 → 1, then the head), then gate it
-before trusting it:
+Then relaunch workers 3 → 2 → 1, followed by head 0, and:
 
-1. Run [`scripts/gate.sh`](../scripts/gate.sh) as shipped.
-2. Extend the needle depth towards the new window (~0.9× is a fair probe) — and
-   time a full-window cold prefill so you can quote the real TTFT.
-3. If a node wedges with no error and the container is unreachable, that is the
-   OOM hard-hang: power-cycle the node, drop the pool a notch, and re-gate.
+1. Run [`scripts/gate.sh`](../scripts/gate.sh) unchanged.
+2. Add exact needle tests at increasing depths up to about 90% of the new
+   window; a shallow pass is not evidence for 512K or 1M.
+3. Measure the full-window cold prefill and publish its TTFT.
+4. Exercise concurrent long requests while watching memory on every rank.
+5. If a node stops responding, power-cycle it and return to the 12 GiB recipe;
+   do not turn an OOM hard-hang into an indefinite retry loop.
 
-Nothing else in the recipe changes — fabric, patched NCCL, drafter, and parsers
-all carry over as-is.
+Fabric, patched NCCL, drafter, and parsers otherwise remain unchanged.

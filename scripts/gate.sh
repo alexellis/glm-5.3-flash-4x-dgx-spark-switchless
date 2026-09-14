@@ -3,7 +3,7 @@
 #
 # Do NOT declare the ring "serving" on a /v1/models 200 or a docker "Up".
 # This runs the three checks that actually prove it works end to end:
-#   1. Long-context needle (~150K prefill) — proves attention across the ring.
+#   1. Long-context needle (~30K prefill) — proves attention across the ring.
 #   2. Tool-call — proves the glm47 tool-call parser is emitting proper calls.
 #   3. Warm decode — one throwaway turn to fill the prefix cache, then measure t/s.
 #

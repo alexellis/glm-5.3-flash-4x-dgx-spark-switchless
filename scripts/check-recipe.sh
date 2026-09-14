@@ -30,5 +30,12 @@ grep -q 'NCCL_RELEASE=v0.0.1' scripts/install-switchless-nccl.sh
 grep -q \
   'NCCL_LIBRARY_SHA256=78cb83871792ec57d763d142e4cae26fc754ae284bcc81dcb2a7d50e17d4fa57' \
   scripts/install-switchless-nccl.sh
+grep -q -- '--gpu-memory-utilization 0.85' scripts/rank-launcher.sh
+grep -q -- '--kv-cache-dtype fp8_e4m3 --kv-cache-memory 12884901888' \
+  scripts/rank-launcher.sh
+if grep -q -- '--max-num-batched-tokens 8192' scripts/rank-launcher.sh; then
+  echo 'The launcher contains the retired 8192-token scheduler override.' >&2
+  exit 1
+fi
 
 echo 'Recipe syntax, pins, receipts, placeholders, and privacy checks passed.'

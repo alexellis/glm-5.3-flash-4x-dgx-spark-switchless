@@ -67,10 +67,14 @@ re-read it the first time something behaves oddly.
 
 ## Memory / KV
 
-- **KV pool capped at 12 GiB (`--kv-cache-memory 12884901888`).** This is
-  deliberate. Chasing it higher risks an **OOM hard-hang** on a node — not a clean
-  out-of-memory error, but a wedged node that usually needs a power-cycle. Leave
-  it at 12 GiB unless you have a specific, tested reason.
+- **KV pool capped at 12 GiB per rank (`--kv-cache-memory 12884901888`).** With
+  explicit `--kv-cache-dtype fp8_e4m3`, vLLM reports **1,576,246 logical tokens**,
+  or 6.01 full 262,144-token windows. This is not a 48 GiB shared heap: every
+  logical sequence occupies corresponding blocks on all four TP ranks. The cap
+  is deliberate. A prior 24 GiB/rank experiment combined with an 8192-token
+  scheduler budget caused an **OOM hard-hang** — not a clean out-of-memory error,
+  but a wedged node that needed a power-cycle. Leave it at 12 GiB unless you are
+  deliberately running a bounded, observed capacity qualification.
 
 ---
 

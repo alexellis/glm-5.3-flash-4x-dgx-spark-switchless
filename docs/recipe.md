@@ -18,7 +18,7 @@ launcher references them):
 
 | Path (example) | What | Source | Fixed? |
 |---|---|---|---|
-| `$HOME/glm53-flash-nvfp4-redhat/` | GLM-5.3-Flash NVFP4 checkpoint (`config.json` + ~120 shards, ~182 GiB) | `RedHatAI/GLM-5.3-Flash-NVFP4` at `36c184c6…` | ✅ weights |
+| `$HOME/glm53-flash-nvfp4/` | GLM-5.3-Flash NVFP4 checkpoint (`config.json` + ~182 GiB) | `LibertAIDAI/GLM-5.3-Flash-NVFP4` at `9e0d74e3…` | ✅ weights |
 | `$HOME/glm53-dflash2-draft/model.safetensors` | DFlash2 speculative drafter | `incoai/GLM-5.3-Flash-DFlash2` | ✅ drafter |
 | `$HOME/nccl-switchless-v0.0.1/libnccl.so.2` | Canonical **switchless-nccl v0.0.1**, SHA-256 `78cb8387…` | published release — see §2 | ✅ patch |
 | `$HOME/glm53-tp4-cache/` | JIT / torch.compile / tilelang cache (created on first run) | — | — |
@@ -30,9 +30,9 @@ secret store — never inline a token on a command line or commit one.
 
 ```bash
 # example, on each node
-huggingface-cli download RedHatAI/GLM-5.3-Flash-NVFP4 \
-  --revision 36c184c6cda000a481711306df5adde42f63321a \
-  --local-dir "$HOME/glm53-flash-nvfp4-redhat"
+huggingface-cli download LibertAIDAI/GLM-5.3-Flash-NVFP4 \
+  --revision 9e0d74e3cef17f634e84fb8e2223707e02616290 \
+  --local-dir "$HOME/glm53-flash-nvfp4"
 huggingface-cli download incoai/GLM-5.3-Flash-DFlash2 \
   --local-dir "$HOME/glm53-dflash2-draft"
 docker pull ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2
@@ -132,10 +132,10 @@ them unless you understand the consequence.
   --served-model-name glm-5.3-flash --trust-remote-code
   --tensor-parallel-size 4 --nnodes 4 --node-rank <R>
   --master-addr <HEAD_MGMT_IP> --master-port <MPORT>
-  --gpu-memory-utilization 0.82 --max-model-len 262144
-  --max-num-seqs 6 --max-num-batched-tokens 8192 --block-size 2304 --moe-backend marlin
+  --gpu-memory-utilization 0.85 --max-model-len 262144
+  --max-num-seqs 6 --block-size 2304 --moe-backend marlin
   --limit-mm-per-prompt '{"image":16}'
-  --kv-cache-dtype auto --kv-cache-memory 12884901888       # bf16 KV, 12 GiB — see gotchas
+  --kv-cache-dtype fp8_e4m3 --kv-cache-memory 12884901888   # 12 GiB/rank — see gotchas
   --speculative-config '{"method":"dflash","model":"/draft","num_speculative_tokens":7}'
   --tool-call-parser glm47 --enable-auto-tool-choice --reasoning-parser glm45
   --chat-template /opt/glm53/chat_template.jinja
@@ -147,23 +147,23 @@ them unless you understand the consequence.
 Notes on the choices:
 
 - **`--moe-backend marlin`** — the MoE kernel that performs on NVFP4 / `sm_121`.
-- **`--max-num-batched-tokens 8192`** — under speculative decode vLLM silently
-  derives a **2048** budget and warns it's suboptimal. Raising to 8192 measured
-  **+11% cold prefill** (2,055 → 2,277 t/s @ 30K) at **zero single-stream decode
-  cost** (~+1 GiB, ~+2 min one-time warmup). It lifts *concurrent* throughput only
-  if you were batched-token-bottlenecked — measure your own baseline first (ours was
-  already unthrottled at 4 streams, so we banked the prefill gain, not a concurrency
-  jump). Keep clear of the 24 GiB-KV + 8192 combo — that's the OOM-hard-hang case.
-- **`--kv-cache-dtype auto` (bf16 KV) + `--kv-cache-memory 12 GiB`** — use an
-  *unquantised* (bf16) KV cache. FP8 KV (`fp8_e4m3`) is a blunt per-tensor quant
-  whose error accumulates with context depth; DeepSeek-MLA models avoid that with
-  the native `fp8_ds_mla` format, but GLM-5.3-Flash is **NoPE**-MLA and does not
-  fit the `fp8_ds_mla` path (a `pe_dim` mismatch) — so the clean choice here is
-  bf16. Because MLA keeps the KV small, bf16 still yields a large pool
-  (**786,432 tokens, 3.0× the 262K window** — the rank-0 log prints it at
-  start-up) and costs nothing on decode.
-  Validated: mid-context needle retrieval passes at **30K / 119K / 229K** tokens.
-  The pool is capped at 12 GiB on purpose — chasing it higher risks an OOM
+- **No fixed `--max-num-batched-tokens` override** — the current qualified
+  launcher lets vLLM derive the scheduling budget. An older bf16 recipe measured
+  an 11% cold-prefill gain from forcing 8192, but 8192 combined with a 24 GiB KV
+  reservation caused the OOM hard-hang described below. The published settings
+  match the release RigMark run rather than carrying that risk forward.
+- **`--kv-cache-dtype fp8_e4m3` + `--kv-cache-memory 12 GiB` per rank** — spell
+  out E4M3. The generic `fp8` selector was rejected because this NoPE-MLA model
+  was routed to the incompatible `fp8_ds_mla` path (`pe_dim must be 64`). Explicit
+  E4M3 is proven on this checkpoint and runtime: the rank-0 log reports a logical
+  pool of **1,576,246 tokens, 6.01× the 262K window**. Do not add the four physical
+  rank reservations together; each logical sequence consumes corresponding KV
+  blocks on every TP rank.
+  The current FP8 deployment passed exact retrieval at **28,780 tokens**, tool
+  calling, native vision, and the complete RigMark output gate. The earlier bf16
+  deployment separately passed needle retrieval at **30K / 119K / 229K**; that is
+  useful historical evidence, not a claim that FP8 has been qualified to 229K.
+  The pool remains capped at 12 GiB on purpose — chasing it higher risks an OOM
   **hard-hang** on a node (not a clean error). See [`gotchas.md`](gotchas.md).
   Wondering about a 512K or 1M window instead? The arithmetic and the gating
   steps are worked through in [`long-context.md`](long-context.md).
@@ -216,14 +216,14 @@ Mounts: `glm53-flash-nvfp4 → /model:ro`, `glm53-dflash2-draft → /draft:ro`,
 Do **not** announce "up" on a `/v1/models` 200 or a `docker ps` "Up". Run all
 three checks (`scripts/gate.sh` automates them) and quote the evidence:
 
-1. **Long-context needle (~150K prefill).** Bury a fact in ~150K tokens of filler
+1. **Long-context needle (~30K prefill).** Bury a fact in ~30K tokens of filler
    and ask for it back; it must be retrieved coherently. This proves long-context
    attention *across the ring*, not just a short-prompt reply.
 2. **Tool-call.** A request that forces a tool call; the response must contain a
    properly `glm47`-parsed tool call.
 3. **Warm decode.** One throwaway turn to fill the prefix cache, then measure.
-   The current controlled run reaches **~70–76 t/s** completed code decode and
-   **~2,276 t/s** cold 64K prefill. Cold first turns decode slowly with `cached=0` — that is an empty
+   The release-qualified run reaches **~69–75 t/s** completed code decode and
+   **~1,965 t/s** cold 64K prefill. Cold first turns decode slowly with `cached=0` — that is an empty
    prefix cache, not a regression.
 
 Reference point: this is roughly the **bottom commercial GLM-5.3 tier**. Matching

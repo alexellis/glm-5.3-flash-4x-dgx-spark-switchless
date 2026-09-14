@@ -97,9 +97,9 @@ OpenAI-compatible endpoint (model id `glm-5.3-flash`) comes out of the head node
 
 ## Real serving numbers (measured, not marketed)
 
-### Controlled RigMark run — 5 September 2026
+### Original controlled baseline — 5 September 2026
 
-This is the current reproducible result from the raw vLLM endpoint, with no
+This is the original reproducible result from the raw vLLM endpoint, with no
 gateway in the measurement path: Red Hat NVFP4 weights, BF16 KV, DFlash2 at
 static `k=7`, `reasoning_effort=low`, and the repository's released NCCL
 v0.1.0 binary mapped into all four ranks. All **15/15** generated code, prose,
@@ -140,7 +140,9 @@ and credentials are absent.
 
 The canonical public release was installed from GitHub on all four nodes and
 verified as the active process mapping before rerunning the same pinned
-RigMark protocol against today's local hardened baseline.
+RigMark protocol against the local hardened baseline. This later qualification
+used the LibertAI NVFP4 checkpoint, explicit FP8 E4M3 KV, and the serve settings
+now carried by the launcher.
 
 | Metric | Local hardened | Published v0.0.1 | Change |
 |---|---:|---:|---:|
@@ -243,7 +245,7 @@ must not be presented as completed code, prose, or valid structured output.
 
 This deployment serves **two humans plus their coding agents daily**, and the
 engine is tuned for a small team rather than a fleet: `--max-num-seqs 6`, with a
-KV pool of 786,432 tokens (3.0× the served window). We measured concurrency two
+KV pool of 1,576,246 tokens (6.01× the served window). We measured concurrency two
 ways, because they disagree — and the difference is the honest answer.
 
 The decode-only sweep (steady generation, thinking off):
@@ -288,8 +290,8 @@ actually feels like.
   — the shipped window is a deliberate trade, and
   [`docs/long-context.md`](docs/long-context.md) works through exactly what
   512K or 1M would take, and what it would cost in KV.
-- Controlled code decode around **75 tokens/s**, completed prose around
-  **30 tokens/s**, and cold 64K prefill around **2,276 tokens/s** — roughly the bottom commercial
+- Controlled code decode around **71 tokens/s**, completed prose around
+  **31 tokens/s**, and cold 64K prefill around **1,965 tokens/s** — roughly the bottom commercial
   GLM-5.3 tier, on hardware you own.
 
 ---
@@ -345,11 +347,11 @@ management LAN.
 
 | You provide (site-specific) | Fixed by the recipe (do not change) |
 |---|---|
-| Your 4 node **management IPs** | The **weights**: `RedHatAI/GLM-5.3-Flash-NVFP4` at the pinned revision |
+| Your 4 node **management IPs** | The **weights**: `LibertAIDAI/GLM-5.3-Flash-NVFP4` at the pinned revision |
 | Your **RoCE cabling** (which port on which node reaches which neighbour) | The **drafter**: `incoai/GLM-5.3-Flash-DFlash2` |
 | Your **fabric IP scheme** (a template is supplied — use any private range) | The **container image**: `ghcr.io/tonyd2wild/vllm-glm53-flash:sm121-v11-dflash2` (public) |
 | Your **interface names** (defaults match the DGX Spark; adjust for your NICs) | **switchless-nccl v0.0.1**, library SHA-256 `78cb8387…` |
-| Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **bf16** (`--kv-cache-dtype auto`), KV pool 12 GiB, DFlash `num_speculative_tokens: 7`, corrected official chat template, parsers, `max-model-len 262144`) |
+| Your **hostnames** and SSH access | The **serve arguments** (TP4, marlin MoE, KV **FP8 E4M3**, KV pool 12 GiB per rank, DFlash `num_speculative_tokens: 7`, corrected official chat template, parsers, `max-model-len 262144`) |
 | A HuggingFace token to fetch the weights (kept in your own secret store) | The **launch order** (workers 3→2→1 headless, then head 0) |
 
 The whole point of the table: clone this, drop in your five values (four node IPs
