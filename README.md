@@ -406,6 +406,12 @@ For repeated operations, use the bounded cluster scripts in
 handoff, post-Docker fabric application, rank order, active progress deadlines,
 and the complete correctness gate.
 
+This recipe does not install a runtime watchdog. The rank containers use
+`--restart no`, and `cluster-up.sh` is a one-shot start and gate, so a rank
+that exits later stays down until an operator restarts the cluster. Capture
+its exit state and logs before rerunning `cluster-up.sh`, which removes the
+old containers. See the [failure capture steps](docs/operator-runbook.md#after-a-rank-exits).
+
 ---
 
 ## Repository layout
