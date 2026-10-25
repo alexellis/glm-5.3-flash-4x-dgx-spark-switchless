@@ -145,7 +145,13 @@ docker run -d --name "$NAME" --restart no \
   -v "$NCCL_DIR:/opt/patched-nccl:ro" \
   -v "$CACHE_DIR:/cache" \
   -v "$CHAT_TEMPLATE:/opt/glm53/chat_template.jinja:ro" \
+  # DeepEP (vendored in the image) ships its own NCCL build and asserts at
+  # import time when a different NCCL is already loaded. /opt/patched-nccl is
+  # this recipe's canonical, hash-verified library, so route dynamic library
+  # resolution to it first and suppress DeepEP's duplicate-NCCL assertion.
+  -e LD_LIBRARY_PATH=/opt/patched-nccl:/usr/local/nvidia/lib:/usr/local/nvidia/lib64 \
   -e LD_PRELOAD=/opt/patched-nccl/libnccl.so.2 -e VLLM_NCCL_SO_PATH=/opt/patched-nccl/libnccl.so.2 \
+  -e EP_SUPPRESS_NCCL_CHECK=1 \
   -e NCCL_SKIP_TREE_CONNECT=1 -e NCCL_SWITCHLESS_RING_ONLY=1 \
   -e NCCL_SOCKET_IFNAME="$MGMT_IF" -e GLOO_SOCKET_IFNAME="$MGMT_IF" -e VLLM_HOST_IP="$MIP" \
   -e NCCL_NET=IB -e NCCL_IB_DISABLE=0 -e NCCL_IB_HCA="$IB_HCA" \
