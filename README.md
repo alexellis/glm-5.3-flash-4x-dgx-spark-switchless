@@ -7,6 +7,13 @@ nodes** as one tensor-parallel engine — joined by a **switchless RoCE ring** a
 accelerated by the **DFlash2 speculative drafter**. One OpenAI-compatible endpoint,
 a 262K context window, ~45 tok/s on real agentic traffic — on hardware you own.
 
+**AI-assisted workflow:** This repository was built and tested with Codex. It is
+designed to be driven by a capable AI coding agent, rather than followed as a
+universal step-by-step manual. Give the agent the full checkout, ask it to read
+this README and any `AGENTS.md`, adapt the commands to your environment, run the
+checks, and investigate errors from their output. Review machine-specific
+changes before applying them.
+
 This repository is the **recipe and the contract**: every address, interface, and
 hostname is a placeholder you swap for your own — nothing here depends on a private
 gateway, router, or network.
