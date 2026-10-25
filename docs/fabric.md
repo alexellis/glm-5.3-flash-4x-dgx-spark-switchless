@@ -46,6 +46,17 @@ Per-node summary (this is the table the script fills in):
 A useful convention (optional): make the last octet equal `rank + 1` on every
 rail, so an address instantly tells you which node it is.
 
+The rank, however, is not a free label: **the rank order in
+`scripts/cluster.env` must walk the physical cable order.** NCCL forms the
+switchless ring between consecutive ranks — 0 → 1 → 2 → 3 → 0 — so wherever
+your cables close the loop, that is the exact order `NODE0..NODE3` must
+follow (and with it every rank-numbered value: fabric addresses, jumbo edges,
+launch order). If the logical ring strays from the cabled one, NCCL attempts
+a QP to a node it is not connected to and fails `ibv_modify_qp INIT→RTR` with
+`Connection timed out`, on every node, no matter how healthy the fabric
+looks. Symmetric labels ("Spark0", "Spark1", …) are the easiest way to get
+this backwards — follow the cables, not the silkscreen.
+
 ## The cables
 
 Four edges means **four cables — that is the entire cable bill for the ring**.
