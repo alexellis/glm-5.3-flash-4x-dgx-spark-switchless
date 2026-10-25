@@ -24,8 +24,16 @@ if grep -En \
   exit 1
 fi
 
-grep -q 'MASTER="10.0.0.1"' scripts/rank-launcher.sh
-grep -q 'SSH_USER="you"' scripts/fabric-setup.sh
+# These two template assertions hold only for a checkout still in the
+# placeholder walkthrough. A configured site replaces MASTER/SSH_USER with
+# its own facts in scripts/cluster.env and/or scripts/fabric.env, so enforce
+# them only until such an inventory exists.
+if [ -f scripts/cluster.env ] || [ -f scripts/fabric.env ]; then
+  echo 'Configured site detected: skipping template assertions for MASTER/SSH_USER.'
+else
+  grep -q 'MASTER="10.0.0.1"' scripts/rank-launcher.sh
+  grep -q 'SSH_USER="you"' scripts/fabric-setup.sh
+fi
 grep -q 'NCCL_RELEASE=v0.0.1' scripts/install-switchless-nccl.sh
 grep -q \
   'NCCL_LIBRARY_SHA256=78cb83871792ec57d763d142e4cae26fc754ae284bcc81dcb2a7d50e17d4fa57' \
